@@ -1,0 +1,603 @@
+---
+title: "Python for Sound Localization"
+author: "Erica Alex"
+date: "2025-09-11"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Overview
+
+This document describes the workflow for analyzing localization data using python. Much of the process has been developed by the Tessa Rhinehart and the Kitzes Lab from the University of Pittsburg. We also use tools from the Bayne Lab at the University of Alberta. Here, I provide a synthesis of information, and a few tips and tricks for using these resources.
+
+Contents:\
+1. Intro to working with Python\
+2. Select and synchronize recordings using the frontierlabsutils library (<https://github.com/rhine3/frontierlabsutils>)\
+3. Run HawkEars on selected recordings (<https://github.com/jhuus/HawkEars>)\
+4. Localize sounds using the opensoundscape library (<https://opensoundscape.org/en/latest/tutorials/acoustic_localization.html>)\
+
+## 1. Intro to Python
+
+Python is a programming language popular in a number of fields including web development, data science, and scientific computing. It is also an ecosystem of libraries, development tools, and software that may seem intimidating, but is very powerful in it's application.
+
+Python can be freely downloaded (<https://www.python.org/about/>) and operated using your systems command line interpreter (e.g. Command Prompt for Windows). However, there are resources available that make python more accessible and user friendly. In this workflow, I use Anaconda to work with Python.
+
+Anaconda is a python distributor that provides a pre-packaged bundle of python language, libraries, and development tools. Some key components:\
+  - Anaconda Navigator: user interface that allows users to access and manage software, environments, and packages\
+  - Conda: command line utlity for managing packages and virtual environments\
+  - Anaconda prompt: command line interpreter for conda\
+  - Integrated Development Environments (IDEs): software applications for code editing, tool building, and debugging. There are a number of IDEs available, including PyCharm, IDLE, Jupyter, and Spyder. I prefer to use Spyder, as it has a similar form and function as RStudio, which I am most comfortable with.\
+  - Pre-installed packages: 300 of the most commonly used python tool packages/
+
+Anaconda can be downloaded here: <https://www.anaconda.com/download>
+
+**Setting up a virtual environment**
+
+It is recommended that you work in a virtual environment - an isolated directory that keeps your project and associated packages separate from other projects and the global python environment. We will be using Anaconda to create and manage our environments.
+
+To create your virtual environment, open Anaconda Navigator from your desktop and launch Anaconda prompt. Run the following command lines: 
+
+```{python, eval=FALSE, echo=TRUE}
+#create new virtual environment, and optionally install packages
+
+conda create --name <myenv> pip python = 3.10 pandas numpy spyder
+
+      #replace <myenv> with the desired name of your environment (don't forget it)
+      #pip is python's standard package manager
+      #python = the version you want to use (latest is usually best)
+      #pandas is a software library for data manipulation and analysis
+      #numpy is a foundational package for scientific computing
+      #spyder allows you to connect to the Integrated Development Environment (IDE) There are a number of IDEs
+      #for code editing (Jupyter, PyCharm, IDLE). I prefer Spyder as it is simialr to RStudio.
+```
+
+Each time you work on your project, open prompt and activate your environment:
+
+```{python, eval=FALSE, echo=TRUE}
+
+conda activate <myenv>
+
+#when you are done with your project, remember to deactivate your environment
+
+conda deactivate
+
+```
+
+You can install packages to your environment at any time using:
+
+```{python, eval=FALSE, echo=TRUE}
+
+pip install <packagename>==<version>
+
+#for sound localization, we want the opensoundscape package, created by the Kitzes Lab from the University of Pittsburgh https://github.com/kitzeslab/opensoundscape
+
+pip install opensoundscape==0.12.0
+
+```
+
+To begin code editing, launch your IDE from prompt:
+
+```{python, eval=FALSE, echo=TRUE}
+
+spyder #ensure the package is installed before launching
+
+```
+
+## Select and Synchronize Recordings
+
+The first step to localization is selecting the recordings you wish to localize. To start, we are going to select one recording event from a single day. For the GBMPs purpose, we want to select a date with good weather, where spot mapping and focal follows where conducted, and a recording from a bit later in the morning. Localization is more difficult for busy soundscapes, so we will start with the tail end of the dawn chorus, when activity has begun to slow.
+
+Once you've selected the recordings you want to use, they need to be synchronized and trimmed. To do this, we will be using the frontierlabsutils github repository developed by Tessa Rhinehart (https://github.com/rhine3/frontierlabsutils). The README file in the repo, as well as the scripts, provide a number of details for how to use them. I'll provide more specific and supplementary comments here.
+
+The documents included in the repo are:\
+    - frontierlabsutils.py (utility library with functions for sync and trim script)\
+    - example_sync (script to sync recordings)\
+    - example_trim (script to trim recordings)\
+
+We start by synchronizing the recordings (example_sync). This process uses the loclog.txt files to find any places where audio data was dropped during recording (due to recorder glitches or SD cards with slow write times, etc.), and inserts buffers of blank space to replace missing data.
+
+After the recordings are synced, we can trim the recordings to have the same start times (example_trim). This is optional, but useful for localization.
+    
+To use these utilities for your own project, there are a few things that may need to be changed in the utility library:
+
+**1. Recorder names**
+
+Tessa labeled the recorders 1-7 in rows A-G. Because we used the same array design, and for ease, the GBMP used the same naming convention. If your recorders are named differently, modify the get_recorder_list() function on line 35:
+
+```{python, eval=FALSE, echo=TRUE}
+
+def get_recorder_list():
+    """Returns list of 49 recorder names A1-G7.
+    """
+    cols = ["A","B","C","D","E","F","G"]
+    rows = ["1","2","3","4","5","6","7"]
+    recorders = [c+r for c in cols for r in rows]
+    
+    return recorders
+
+```
+
+**2. Path name to data directory (DATA_DIR), where your array data is stored**
+
+**3. File paths using glob() function**
+
+The glob function specifies the pattern to use when searching for audio recordings. The utilities defined in the frontierlabsutils.py assume your data is stored and named following a particular convention. If your data is stored and named differently, you will have to modify the utilities.
+
+The expected structure for raw audio files that have not been synced:
+
+Directory (e.g. recordings_raw)\
+  -> Subfolder (for each recorder, e.g. MIN231xA1)\
+        -----> Date (e.g. 20250618) -> loclog.txt\
+        -----> RecorderName (e.g. A1) -> filename*\
+        
+Important note: Tessa included the prefix MIN231x on all of her recorder names, if you did not use this prefix or used a different one, you'll have to modify this in the utilities 
+
+The expected structure for recordings that have been synced (and will then be trimmed or localized): 
+
+Directory (e.g. rescordings_resampled)\
+  -> Subfolder (for each recorder, e.g. A1 )\
+      -----> filename*\
+
+*The file naming convention for FL ARUs is: S{startdate}T{starttime}-{timezone}_E{enddate}T{endtime}-{timezone}_+lat-lon.wav
+
+To modify the utilities, look for the glob() function in the get_recorder_path, get_overflows, and get_loclog_contents functions, and edit as needed:
+
+```{python, eval=FALSE, echo=TRUE}
+
+#for raw files:
+
+glob(f"MIN231x{recorder}*/*/S{date}*.wav"))
+
+      #The subfolders were named with the prefix MIN231x followed by the recorder names (e.g. A1)
+      #the wildcard /*/ looks in any folder for the .wav files for the specified date
+      
+      
+#for resampled recordings:
+
+glob(f"{data_dir}/{recorder}/S{date}*.wav")
+
+      #data_dir = top level folder where audio files are stored
+      #recorder = selected recorder subfolder
+      #Sdate = wav files from the specified date
+      
+#if a time was specified, it is added to the pattern for filenames
+
+glob(f"{data_dir}/{recorder}/S{date}T{hour_minute}*.wav")
+
+#or
+
+glob(f"MIN231x{recorder}*/*/S{date}T{hour_minute}*.wav")
+
+```
+
+**Note:** {data_dir}, {recorder}, {date}, and {hour_minute} are values that you manually specifiy in each of the sync and trim scripts
+
+**Note:** the GBMP did not set particular prefixes and recorder names before deployment. This was important, and our data is a mess. For ease, I have been creating new folders in a separate location and movubg the recordings I want to use there before analysis. For efficient data management we'll want to make sure we have a consistent naming convention before deploying arrays.
+
+**4. How to get recordings from the same recording period (get_all_times)**
+
+Given a specific time, this function retrieves time strings over the next 12 minutes, to account for recorders that began late. 
+
+```{python, eval=FALSE, echo=TRUE}
+
+def get_all_times(time):
+    """Get all possible recording minutes given a potential start time
+    
+    Arguments:
+        time: hour and minute string in the format '0429', '0958', etc.
+            minute must be either 28, 29, 30 or 58, 59, 00
+            
+    Returns:
+        list of all possible recording minute strings, helpful for
+        use with finding overflows
+        
+    Example:
+        get_all_times("0458") --> ['0458', '0459', '0500', '0501', 
+            '0502', '0503', '0504', '0505', '0506', '0507', '0508', 
+            '0509', '0510']
+        
+    """
+    hour = time[:2]
+    minute = time[2:]
+    
+    time_list = []
+    if int(minute) > 31:
+        hour1 = hour
+        hour2 = int(hour)+1
+        minutes_hour1 = range(int(minute), 60)
+        minutes_hour2 = range(0, 11)
+        for minute in minutes_hour1:
+            time_list.append(str(hour1).zfill(2)+str(minute).zfill(2))
+        for minute in minutes_hour2:
+            time_list.append(str(hour2).zfill(2)+str(minute).zfill(2))
+    
+    else:
+        minutes_hour = range(int(minute), 41)
+        for minute in minutes_hour:
+            time_list.append(str(hour).zfill(2) + str(minute).zfill(2))
+    return(time_list)
+    print(minute)
+
+```
+
+**Note:** the scripts I used are modified to pull recordings from any time on the specified date. This is because I have cherry picked the time/recording I want to use and separated it from the dataset. I ran into problems with selecting particular recording times Tessa's script, and need to troubleshoot.
+
+#### **Extra Tips**
+
+In the example_sync script, I added a loop for all recorder subfolders so  that the script only need to be run once to sync all of my recordings. This works when you're using relatively few recordings. For large datasets with multiple dates and times, it's likely best to run sync for one recorder at a time, as is written in Tessa's script.
+
+```{python, eval=FALSE, echo=TRUE}
+
+# Define recorders A1 to G7, insert at line 26
+recorders = [f"{letter}{num}" for letter in "ABCDEFG" for num in range(1, 8)]
+
+#add loop for all recorders, insert at line 72
+for recorder in recorders:
+    print(f"\nProcessing recorder: {recorder}")
+    
+#the lines below this chunk must be indented in order to be contained within the loop
+#Note: the argument old_style=FALSE must be removed from line 89, 103, and 144
+
+```
+
+In the example_trim script, I added the recorder name as a prefix in the filenames of the saved recordings. This makes it easier to manage data from the hawkears output in the next step.
+
+```{python, eval=FALSE, echo=TRUE}
+
+# Trim and save each file
+    for recorder, recording in zip(recorders_this_time, recordings_this_time):
+        recorder_out_dir = trimmed_recording_dir
+        recorder_out_dir.mkdir(exist_ok=True)
+        
+        #Add recorder name as prefix
+        new_filename = f"{recorder}_{recording.name}"
+        trimmed_audio_filename = recorder_out_dir / new_filename
+
+        if trimmed_audio_filename.exists():
+            print(f"Already trimmed: {trimmed_audio_filename.name}")
+            continue
+
+        print(f"Trimming {recording.name}...")
+
+        audio = Audio.from_file(recording)
+        original_start, original_end = extract_start_end(recording.name)
+
+        clip_len = (earliest_end_second - latest_start_second).seconds
+
+        trimmed_audio = get_audio_from_time(
+            clip_start=latest_start_second,
+            clip_length_s=clip_len,
+            original_start=original_start,
+            original_audio=audio
+        )
+
+        trimmed_audio.save(trimmed_audio_filename)
+        print(f"Saved trimmed audio: {trimmed_audio_filename}")
+
+```
+
+## Run Hawkears on Synchronized Recordings
+
+Due to the large amount of data produced by localization arrays, we are going to use an automated classifier to annotate the recordings. In this example, we'll use HawkEars, developed by Jan Huus, Kevin G. Kelly, Erin M. Bayne, and Elly C. Knight (https://github.com/jhuus/HawkEars).
+
+To run HawkEars we'll use command line code in Anaconda prompt:
+
+```{python, eval=FALSE, echo=TRUE}
+#Note: make sure you have git installed before beginning
+#Note: make sure the python version you're running is compatible with current hawkears github repo
+
+ git clone https://github.com/jhuus/HawkEars
+ cd HawkEars
+ 
+ pip install -r requirements.txt
+ 
+ python analyze.py -i <input path> -o <output path>
+ 
+ #there are a number of optional arguments available, they can be checked using: 
+ 
+ python analyze.py -h
+ 
+ # options:
+ #  -h, --help            show this help message and exit
+ #  -b, --band BAND       If 1, use banding codes labels. If 0, use common names. Default = 1.
+ #  -d, --debug           Flag for debug mode (analyze one spectrogram only, and output several top candidates).
+ #  --embed               If specified, generate a pickle file containing embeddings for each recording processed.
+ #  --fast                If specified, reduce ensemble size for faster inference.
+ #  -e, --end END         Optional end time in hh:mm:ss format, where hh and mm are optional.
+ #  -i, --input INPUT     Input path (single audio file or directory). No default.
+ #  -o, --output OUTPUT   Output directory to contain label files. Default is input path, if that is a directory.
+ #  --overlap OVERLAP     Seconds of overlap for adjacent 3-second spectrograms. Default = 1.5.
+ #  -m, --merge MERGE     Specify 0 to not merge adjacent labels of same species. Default = 1, i.e. merge.
+ #  -p, --min_score MIN_SCORE
+ #                        Generate label if score >= this. Default = 0.8.
+ #  --recurse             If specified, process all subdirectories of the input directory.
+ #  --rtype RTYPE         Output type. One of "audacity", "csv" or "both". Default is "audacity".
+ #  -s, --start START     Optional start time in hh:mm:ss format, where hh and mm are optional.
+ #  --threads THREADS     Number of threads. Default = 3
+ #  --power POWER         Power parameter to mel spectrograms. Default = 0.7
+ #  --date DATE           Date in yyyymmdd, mmdd, or file. Specifying file extracts the date from the file name, using
+ #                        the file_date_regex in base_config.py.
+ #  --lat LAT             Latitude. Use with longitude to identify an eBird county and ignore corresponding rarities.
+ #  --lon LON             Longitude. Use with latitude to identify an eBird county and ignore corresponding rarities.
+ #  --filelist FILELIST   Path to optional CSV file containing input file names, latitudes, longitudes and recording
+ #                        dates.
+ #  --region REGION       eBird region code, e.g. "CA-AB" for Alberta. Use as an alternative to latitude/longitude.
+ #  --unfilt UNFILT       Specify 0 to omit unfiltered inference when using filters. If set to 1, use max of filtered
+ #                        and unfiltered predictions (default = True).
+ #  --lpf LPF             Specify 1 to enable low-pass filter (default = False).
+ #  --lpfstart LPFSTART   Start frequency for low-pass filter curve (default = 3500).
+ #  --lpfend LPFEND       End frequency for low-pass filter curve (default = 5000).
+ #  --lpfdamp LPFDAMP     Amount of damping from 0 to 1 for low-pass filter (default = 1).
+ #  --hpf HPF             Specify 1 to enable high-pass filter (default = False).
+ #  --hpfstart HPFSTART   Start frequency for high-pass filter curve (default = 2000).
+ #  --hpfend HPFEND       End frequency for high-pass filter curve (default = 4000).
+ #  --hpfdamp HPFDAMP     Amount of damping from 0 to 1 for high-pass filter (default = 0.9).
+ #  --bpf BPF             Specify 1 to enable band-pass filter (default = False).
+ #  --bpfstart BPFSTART   Start frequency for band-pass filter curve (default = 1200).
+ #  --bpfend BPFEND       End frequency for band-pass filter curve (default = 7000).
+ #  --bpfdamp BPFDAMP     Amount of damping from 0 to 1 for band-pass filter (default = 0.9).
+
+```
+
+**Note:** It will be important to have a protocol for valudating HawkEars tags, the Kitzes Lab and Bayne Lab may have advice for best practice. This is the next step for the GBMP.
+
+**Note:** As a test run, we analyzed recordings using the default settings for HawkEars, which merges tags adjacent tags. The opensoundscape library expects
+that detections are in discrete and equal time interval. The script in the following section demonstrates how to create these time windows post hoc (useful if you want a custom time period). Otherwise, it would be simplest to set merge to false, so that the HawkEars default 3s tags are preserved.Note that with this method, you will still need to populate time bins with 0s for species where there were no detections.
+
+## Localization using opensoundscape
+
+To perform localization, we will use the opensoundscape utility library, created by the Kitzes Lab. A helpful tutorial can be found here: https://opensoundscape.org/en/latest/tutorials/acoustic_localization.html.
+
+We need to supply three data components:\
+1. audio_files: your set of recordings\
+2. aru_coords: csv with x and y coordinates for each ARU in your array. The coordinates should be associated with the filepath to the recording for that ARU\
+3. detections: csv with binary species detections for each recorder. Detections must be divided into equal time bins (we used 3s). Your csv should have the following columns:\
+              - file: path to recording for each ARU\
+              - start_time: start of time bin (in seconds)\
+              - end_time: end of time bin (in seconds)\
+              - column for each species, populated with 0s and 1s to denote detections in each of the 3s windows for ARU\
+              
+
+I used the following R script to create the csv files from HawkEars output (txt files):
+
+```{r, eval=FALSE, echo=TRUE}
+
+## Libraries
+library(tidyverse)
+library(stringr)
+library(tools)
+library(dplyr)
+library(tidyr)
+
+#Read HawkEars output from txt file to data frame --------------------------------------------------------------------------------------------
+
+#Define paths
+txt_dir <- "C:/Users/AlexE/OneDrive - EC-EC/Localization/hawkears/gsa_jun18_0653_hawkears"
+wav_dir <- "C:/Users/AlexE/OneDrive - EC-EC/Localization/recordings/gsa_trim"  # Adjust this if needed
+
+#List .txt files
+files <- list.files(path = txt_dir, pattern = "\\.txt$", full.names = TRUE)
+
+#Build function to read files
+
+#ignore blank files
+read_with_metadata <- function(file_path) {
+  if (file.info(file_path)$size == 0) {
+    message("Skipping empty file: ", file_path)
+    return(NULL)
+  }
+  
+  #read file into a dataframe
+  df <- read.table(file_path, header = FALSE, stringsAsFactors = FALSE)
+  
+  #split data into three columns: tag start time (s), tag end time (s) and species id
+  if (ncol(df) >= 3) {
+    names(df)[1:3] <- c("tag_start", "tag_end", "species_id")
+  }
+  
+  #define data types for the new columns
+  df$tag_start <- as.numeric(df$tag_start)
+  df$tag_end <- as.numeric(df$tag_end)
+  
+  #split species code from the hawkears confidence score
+  species_split <- do.call(rbind, strsplit(df$species_id, ";")) #separated by semi-colon
+  df$species  <- species_split[, 1]
+  df$hawkears <- as.numeric(species_split[, 2])
+  df$species_id <- NULL #remove original column
+
+  #map filepath from filename
+  fname <- tools::file_path_sans_ext(basename(file_path))
+  file_name <- sub("_HawkEars$", ".wav", fname)
+  file_path_wav <- file.path(wav_dir, file_name)
+  df$file <- file_path_wav
+  
+  #pull the aru id from the filenames
+  parts <- strsplit(fname, "_")[[1]]
+  df$aru_id   <- parts[1]  # station code, e.g. A1
+  df <- df[, c("file", setdiff(names(df), "file"))]
+  
+  return(df)
+}
+
+#Read txt files to dataframe using defined function
+all_data <- do.call(rbind, lapply(files, read_with_metadata))
+unique(all_data$aru_id)
+
+#Create aru_coords.csv file ----------------------------------------------------------------------------------------------------------------
+
+#pull filepath and aru id
+rec = all_data %>%
+  select(file, aru_id)
+#check
+unique(rec$aru_id)
+
+#bring in rtk coordinates for each aru
+rtk <- read.csv("C:/Users/AlexE/OneDrive - EC-EC/Localization/data/gsa_rtk.csv")
+
+#join to file list by aru id
+aru_coords <- left_join(x=rtk, y=rec, by = "aru_id", multiple = "any")
+
+#filter to only expected columms: filepath, lat(y), and lon(x)
+aru_coords = aru_coords %>%
+  select(file, x, y)
+
+#save to csv
+write.csv(aru_coords, "C:/Users/AlexE/OneDrive - EC-EC/Localization/data/aru_coords.csv")
+
+
+#Create detections.csv -----------------------------------------------------------------------------------------------------------------------
+
+#need to create 3 second time bins with binary detections for each species
+
+#find the latest tag end time
+global_max_end <- max(all_data$tag_end, na.rm = TRUE)
+
+#create 3s bins
+all_bins <- tibble(
+  bin_start = seq(0, global_max_end, by = 3)
+) %>%
+  mutate(bin_end = bin_start + 3)
+
+#get all species for all ARUs
+aru_sp <- all_data %>%
+  distinct(aru_id, species)
+
+#combine with time bins
+bins_sp <- aru_sp %>%
+  crossing(all_bins)
+
+#populate species detections
+presence_df <- bins_sp %>%
+  left_join(all_data, by = c("aru_id", "species")) %>% #join tag start_end
+  filter(!(bin_end <= tag_start | bin_start >= tag_end)) %>% #filter to time bins containing tags
+  distinct(file, species, bin_start, bin_end) %>% #keep only distinct time bins
+  mutate(present = 1) #denotes detection of species
+
+#tidy up
+final_unique <- presence_df %>%
+  select(file, bin_start, bin_end, species, present) %>%
+  distinct()
+
+#pivot to wide format
+final_wide <- final_unique %>%
+  pivot_wider(
+    names_from = species,  #make each species a column
+    values_from = present, #if present in the ARU/time-bin set as 1
+    values_fill = 0        #if absent, set 0
+  ) %>%
+  arrange(file, bin_start) %>% #rearrange and rename to match expected fields
+  rename(start_time = bin_start,
+         end_time = bin_end)
+
+#Optional: filter to only desired species
+detections_grsp <- final_wide %>%
+  select(file, start_time, end_time, GRSP)
+
+#save to csv
+write.csv(detections_grsp, "C:/Users/AlexE/OneDrive - EC-EC/Localization/data/detections_grsp.csv")
+
+```
+
+See the tutorial for detailed instructions and code for conducting the analysis. 
+
+#### **Extra Tips**
+
+I was interested in seeing the average localized positions (rather than just filtered by error), as well as the known locations of birds from focal follows and spot mapping sessions. My code for this plot:
+
+```{python, eval=FALSE, echo=TRUE}
+
+#view the average position of the species for each time window
+from collections import defaultdict
+
+# filter to error threshold and number of averaged positions
+rms_threshold = 55 # meters, residual RMS threshold
+
+deju_events = [
+    e for e in position_estimates
+    if e.class_name == "DEJU" and e.residual_rms < rms_threshold
+]
+
+#group by start of time bin
+grouped_by_time = defaultdict(list)
+for event in deju_events:
+    grouped_by_time[event.start_timestamp].append(event)
+
+#filter for the number of positions in each window
+min_events_per_window = 1  # minimum number of valid  events per time window
+
+filtered_groups = {
+    ts: events for ts, events in grouped_by_time.items()
+    if len(events) >= min_events_per_window
+}
+
+#get average position per time window
+avg_locations = []
+timestamps = []
+
+for timestamp, events in filtered_groups.items():
+    x_avg = np.mean([e.location_estimate[0] for e in events])
+    y_avg = np.mean([e.location_estimate[1] for e in events])
+    avg_locations.append((x_avg, y_avg))
+    timestamps.append(timestamp)
+
+#split coordinate pairs into x and y positions
+x_avg_coords, y_avg_coords = zip(*avg_locations)
+    
+#Optional: overlay with coordinates of known locations
+import pandas as pd
+
+#load csv
+csv_path = "C:/Users/AlexE/OneDrive - EC-EC/Localization/GRSP_coords.csv"  # replace with your file path
+known_locations = pd.read_csv(csv_path)
+
+#extract coordinates
+x_known = known_locations['x']
+y_known = known_locations['y']
+
+#define plot
+plt.figure(figsize=(10, 8))
+#plot ARU locations
+plt.plot(aru_coords["x"], aru_coords["y"], "^", label="ARUs", color="black")
+#plot average positions
+plt.scatter(x_avg_coords, y_avg_coords, color="red", label="Average Location/Time", alpha=0.6)
+#plot known positions
+plt.scatter(x_known, y_known, color='blue', marker='X', s=100, label='Known GRSP Points')
+#set axis limits
+plt.xlim(-109.334, -109.3305)
+plt.ylim(50.6660,50.66925)
+#labels
+plt.xlabel("X coordinate (m)")
+plt.ylabel("Y coordinate (m)")
+plt.title("Average DEJU Sound Localization per Time Window")
+#legend
+plt.legend(bbox_to_anchor=(1.02, 1), loc="upper left")
+#remove grid lines
+plt.grid(False)
+plt.show()
+
+```
+
+**Important:** Localization takes a long time, and python doesn't save objects to your environment the same way R does. To save variables from your environment and load them later in a different session:
+```{python, eval=FALSE, echo=TRUE}
+
+import shelve
+
+# List only the variables you want to save
+variables_to_save = ['DEJU_positions']  # Replace with your variable names
+
+with shelve.open("C:/Users/AlexE/OneDrive - EC-EC/Localization/deju_calibration.out", 'n') as my_shelf:
+    for key in variables_to_save:
+        my_shelf[key] = globals()[key]
+        
+#Load saved variables in your next session
+filename = "C:/Users/AlexE/OneDrive - EC-EC/Localization/deju_calibration.out"
+with shelve.open(filename) as my_shelf:
+   # Loop through the saved keys and restore them to the global namespace
+    for key in my_shelf:
+        globals()[key] = my_shelf[key] 
+
+```
+
