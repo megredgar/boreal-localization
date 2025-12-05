@@ -39,13 +39,15 @@ DATA_DIR = "D:/BBMP/2025/ARU - Breeding Season 2025/Localization"
 
 def get_recorder_list():
     """
-    Returns list of 49 recorder names N1-E1 ... N7-E7,
-    matching folder naming like L1-N1-E1, L1-N1-E2, etc.
+    Return list of recorder folder names matching your layout:
+    L1N1E1, L1N1E2, ..., L1N7E7.
     """
-    northings = [f"N{i}" for i in range(1, 8)]  # N1..N7
-    eastings = [f"E{i}" for i in range(1, 8)]   # E1..E7
-
-    recorders = [f"{n}-{e}" for n in northings for e in eastings]
+    loc = "L1"  # change if you ever have L2, L3, etc.
+    return [
+        f"{loc}N{n}E{e}"
+        for n in range(1, 8)   # N1..N7
+        for e in range(1, 8)   # E1..E7
+    ]
     return recorders
 
 class InputError(Exception):
