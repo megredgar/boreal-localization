@@ -33,17 +33,19 @@ import warnings
 
 print("Importing Frontier Labs Utilities")
 #set directory where your recordings are stored
-DATA_DIR = "C:/Users/AlexE/OneDrive - EC-EC/Robinson,Barry (il _ he, him) (ECCC)'s files - Grassland Bird Monitoring/R Projects/Localization/recordings/snas_cclo_follow"
+DATA_DIR = "D:/BBMP/2025/ARU - Breeding Season 2025/Localization"
 
 ### RECORDING NAME UTILITIES ###
 
 def get_recorder_list():
-    """Returns list of 49 recorder names A1-G7.
     """
-    cols = ["A","B","C","D","E","F","G"]
-    rows = ["1","2","3","4","5","6","7"]
-    recorders = [c+r for c in cols for r in rows]
-    
+    Returns list of 49 recorder names N1-E1 ... N7-E7,
+    matching folder naming like L1-N1-E1, L1-N1-E2, etc.
+    """
+    northings = [f"N{i}" for i in range(1, 8)]  # N1..N7
+    eastings = [f"E{i}" for i in range(1, 8)]   # E1..E7
+
+    recorders = [f"{n}-{e}" for n in northings for e in eastings]
     return recorders
 
 class InputError(Exception):
