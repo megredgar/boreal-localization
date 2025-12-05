@@ -3,6 +3,7 @@ frontierlabsutils.py
 
 by Tessa Rhinehart
 2023-10-16
+adapted by Megan Edgar 2025-12-05
 
 Utilities for using Frontier Labs BAR-LT
 synchronized autonomous acoustic recorders
@@ -133,9 +134,10 @@ def extract_start_end(filename):
     return start_datetime, end_datetime
 
 def get_rec_name(*args, **kwargs):
-    """Alias for get_recording_path()
-    """
-    return get_recording_path(args, kwargs)
+    """Alias for get_recording_path()"""
+    return get_recording_path(*args, **kwargs)
+
+from pathlib import Path
 
 def get_recording_path(
     recorder,
@@ -146,80 +148,49 @@ def get_recording_path(
     logfile_name=None,
     logging=False
 ):
-    """Get path of recording given a recorder, time, and date
-    
-    This function tries to get the path to a recording from 
-    a particular recorder and time. If one cannot be found,
-    it prints this. Additionally, these results can be logged to a logfile.
-    
-    Arguments:
-        recorder (string): string with one capital letter 
-            (A-G) and one number (1-7) e.g. A1
-        date (string): day formatted YYYYMMDD e.g. 20230628
-        hour_minute (string): time formatted HHMM e.g. 0459
-            Available times are between 03:59 to 09:59;
-            mins are either 29 or 59
-            
-            if hour_minute == "any", this function will return 
-            all recordings from this date
-        valid_times (list): list that hour_minute should be in
-            or, if valid_times=="playback", will check that
-            hour_minute is in one of the playback times
-        data_dir: top-level directory to search for recording 
-            in. Change this to resampled directory if needed.
-        logfile_name (string path): path of logfile to optionally 
-            save information to about files that aren't found.
-        logfile (bool): whether or not to log results to a file
-    
-    Returns:
-        Return format depends on hour_minute:
-            if hour_minute != "any": returns the recording from 
-                this date, or None if no files
-            if hour_minute == "any": a list of all recordings from 
-                this date, or an empty array if no files
     """
-    if "resampled" in data_dir:
+    Get path of recording given recorder (e.g., 'L1N1E7'), date (YYYYMMDD),
+    and hour_minute (HHMM). Searches under:
+
+        <data_dir>/<recorder>/<something>/S<date>T<hour_minute>*.wav
+    """
+    base = Path(data_dir) / recorder
+
+    if "resampled" in str(data_dir).lower():
+        # adjust if you ever have a separate resampled tree
         if hour_minute == "any":
-            recordings = list(Path(data_dir, recorder).glob(
-                f"{recorder}_S{date}*.wav"))
+            recordings = list(base.rglob(f"{recorder}_S{date}*.wav"))
         else:
-            recordings = list(Path(data_dir, recorder).glob(f"{recorder}_S{date}T{hour_minute}*.wav"))
+            recordings = list(base.rglob(f"{recorder}_S{date}T{hour_minute}*.wav"))
     else:
         if hour_minute == "any":
-            recordings = list(Path(data_dir, recorder).glob(
-                f"S{date}*.wav"))
+            recordings = list(base.rglob(f"S{date}*.wav"))
         else:
-            recordings = list(Path(data_dir, recorder).glob(
-                f"S{date}T{hour_minute}*.wav"))
+            recordings = list(base.rglob(f"S{date}T{hour_minute}*.wav"))
+
     if valid_times == "playback":
-        valid_times = ["0359", "0429", "0459", 
-                       "0529", "0559", "0629", 
-                       "0659", "0729", "0759", 
+        valid_times = ["0359", "0429", "0459",
+                       "0529", "0559", "0629",
+                       "0659", "0729", "0759",
                        "0829", "0859", "0929",
                        "0959"]
-    if valid_times is not None:
+    if valid_times is not None and hour_minute != "any":
         if hour_minute not in valid_times:
-            raise ValueError("hour_minute must be one of: "+str(valid_times))
-    
-    if len(recordings)<1:
-        print(f"recorder {recorder} - day {date} - time {hour_minute} not found")
-        if logging:
-            f = open(logfile_name, "a+")
-            f.write(f"recorder {recorder} - day {date} - time {hour_minute} not found\n")
-            f.close()
-        if hour_minute=="any":
-            return None
-        else:
-            return []
-    elif len(recordings)==1:
-        if hour_minute=="any":
-            return recordings
-        else:
-            return recordings[0]
-    elif hour_minute != "any":
-        raise ValueError(f"multiple recordings for {date} and {hour_minute}")
-    else:
-        return recordings
+            raise ValueError("hour_minute must be one of: " + str(valid_times))
+
+    if len(recordings) < 1:
+        info = f"recorder {recorder} - day {date} - time {hour_minute} not found"
+        print(info)
+        if logging and logfile_name is not None:
+            with open(logfile_name, "a+", encoding="utf-8") as f:
+                f.write(info + "\n")
+        return None if hour_minute == "any" else []
+
+    if len(recordings) == 1 or hour_minute == "any":
+        return recordings if hour_minute == "any" else recordings[0]
+
+    # multiple matches for specific time
+    raise ValueError(f"multiple recordings for {recorder}, {date} and {hour_minute}")
     
 def get_all_times(time):
     """Get all possible recording minutes given a potential start time
@@ -260,57 +231,57 @@ def get_all_times(time):
     print(minute)
 
     
+
     
 ### SYNCHRONIZATION UTILITIES ###
 
+
 def get_overflows(
-    recorder, data_dir=DATA_DIR, logfile_name=None, logging=False):
-    """Get all numbers of overflows from txt files for a recorder
-    
-    Finds all logfiles for a recorder and gets the dates of the overflows.
-    
-    Arguments:
-        recorder (string): string with one capital letter (A-G) and one number (1-7) e.g. A1
-        
-    Returns:
-        dataframe containing the number of overflows for all recordings for all recorders
+    recorder, data_dir=DATA_DIR, logfile_name=None, logging=False
+):
     """
-    txtfiles = list(glob(f"{data_dir}/{recorder}*/*txt"))
-    
-    if len(txtfiles)<1:
+    Get all numbers of overflows from txt files for a recorder.
+    Searches <data_dir>/<recorder>/**.txt
+    """
+    base = Path(data_dir) / recorder
+    txtfiles = list(base.rglob("*.txt"))
+
+    if len(txtfiles) < 1:
         info_string = f"recorder {recorder} - txt file not found"
         print(info_string)
-        if logging:
-            f = open(logfile_name, "a+")
-            f.write(info_string+'\n')
-            f.close()
+        if logging and logfile_name is not None:
+            with open(logfile_name, "a+", encoding="utf-8") as f:
+                f.write(info_string + "\n")
         return None
 
     overruns = []
     for txtfile in txtfiles:
-        df = pd.read_csv(txtfile, sep='\t', encoding="unicode_escape")
+        df = pd.read_csv(txtfile, sep="\t", encoding="unicode_escape")
         for c in df.values:
             if "overruns" in c[0]:
-                
-                # Extract info from the line
-                date, time, t, b, o, e, num_overruns = c[0].split(' ')
+                date, time, t, b, o, e, num_overruns = c[0].split(" ")
                 hour = int(time[:2])
                 minute = int(time[3:5])
-                
-                # Format the recording date and start time
+
                 start_time_1900s = datetime.datetime(
                     year=1900,
                     month=1,
                     day=1,
                     hour=hour,
-                    minute=minute) - datetime.timedelta(minutes=11)
-                date_string = ''.join(date.split('-'))
-                start_string = start_time_1900s.strftime("%H%M")
-                
-                # Add to list of overruns
-                overruns.append([recorder, date_string, start_string, int(num_overruns)])
+                    minute=minute,
+                ) - datetime.timedelta(minutes=11)
 
-    return pd.DataFrame(overruns, columns=["recorder", "date_str", "time_str", "num_overruns"])
+                date_string = "".join(date.split("-"))
+                start_string = start_time_1900s.strftime("%H%M")
+
+                overruns.append(
+                    [recorder, date_string, start_string, int(num_overruns)]
+                )
+
+    return pd.DataFrame(
+        overruns, columns=["recorder", "date_str", "time_str", "num_overruns"]
+    )
+
 
 def format_write_time(write_time_str, date_format):
     """Format string write time to datetime.timedelta
@@ -360,30 +331,21 @@ def get_recording_write_times(logfile_values, date, start_time):
     return write_times
 
 def get_loclog_contents(data_dir, recorder, date):
-    """Find logfile(s) and all contents
-    
-    Arguments:
-        data_dir (string): top-level dir such that this format pattern leads to the logfile:
-            f"{data_dir}/MIN231x{recorder}*/*{date}*/loclog.txt"
-        recorder (string): recorder string e.g. "A1", "G7"
-        date (string): date string formatted YYYYMMDD e.g. "20230628"
-    
-    Returns: 
-        np.array where each entry is a separate entry to the logfile
-    
     """
-    # List all logfiles
-    date_logfiles = list(glob(f"{data_dir}/{recorder}/loclog.txt"))
-    try:
-        assert(len(date_logfiles) >= 1)
-    except:
+    Find loclog.txt under <data_dir>/<recorder>/**/loclog.txt
+    """
+    base = Path(data_dir) / recorder
+    date_logfiles = list(base.rglob("loclog.txt"))
+
+    if len(date_logfiles) < 1:
         warnings.warn(f"No loclog found for recorder {recorder} and date {date}")
         return []
 
-    # Read contents of all logfiles
     write_time_vals = []
     for logfile in date_logfiles:
-        write_time_vals.append(pd.read_csv(logfile, sep='\t', encoding="unicode_escape").values)
+        write_time_vals.append(
+            pd.read_csv(logfile, sep="\t", encoding="unicode_escape").values
+        )
     return np.concatenate(write_time_vals)
 
 
