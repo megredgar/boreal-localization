@@ -27,17 +27,19 @@ Important: Run the embHEtools.py script FIRST
 import librosa
 import sys # To work with directory of your computer
 import os # To work with operating system of your computer
+#Set working directory where you have put HawkEars
+#os.chdir("C:/Users/bayne/HawkEars_v108")
+os.chdir("C:/Users/EdgarM/Desktop/Localization/boreal-localization")
+
+
 import sqlite3 # Database used to store results
 import pandas as pd # Query tools
 import embHEtools # Functions built by Erin Bayne to run validation code
 
-#Set working directory where you have put HawkEars
-#os.chdir("C:/Users/bayne/HawkEars_v108")
-os.chdir("C:/Users/EdgarM/Desktop/Localization/boreal-localization/HawkEars")
 
 # Name project and select species you want HawkEars to detect
-projectname = 'boreallocalization_veery'
-spp_to_include = ['VEER'] # NOTE in spp_to_include YOU COULD USE ANY 1 OF['OVEN', 'Ovenbird', 'ovenbi1'])  # can be COMMON_NAME, CODE4, or CODE6 [indicate a dictionary and are required]
+projectname = 'boreallocalization_ewpw'
+spp_to_include = ['EWPW'] # NOTE in spp_to_include YOU COULD USE ANY 1 OF['OVEN', 'Ovenbird', 'ovenbi1'])  # can be COMMON_NAME, CODE4, or CODE6 [indicate a dictionary and are required]
 # If spp_to_include is empty then all species HawkEars knows are processed. If you want a subset type "OVEN", "WTSP", "CHSP" etc)
 
 # Desired recordings to process from Cirrus
@@ -46,7 +48,7 @@ spp_to_include = ['VEER'] # NOTE in spp_to_include YOU COULD USE ANY 1 OF['OVEN'
 #yearid = 2025
 #siteid = "SNAS"
 runid = f"{projectname}" # Name of processing run
-audio_dir ="C:/Users/EdgarM/Desktop/Localization/localizationtrim" #Run all 49 ARUs
+audio_dir ="E:/BAR-LT_LocalizationProject/localizationtrim" #Run all 49 ARUs
 
 # MEG PUT THESE INSANE TIME
 # Desired dates and times of recordings to select from server
@@ -56,7 +58,7 @@ min_time = 0 # Note do NOT include the leading zero that comes off an ARU for ti
 max_time = 235959 # Note do NOT include the leading zero that comes off an ARU for time. 235999 is millisecond right before midnight
 
 # Desired HawkEars settings. You can further select when doing validation
-cutoff = 0.8 # Cutoff score you want HawkEars to run at. Default = 0.8 in HawkEars. I used 0.01 as I want every 3 seconds to have a score
+cutoff = 0.7 # Cutoff score you want HawkEars to run at. Default = 0.8 in HawkEars. I used 0.01 as I want every 3 seconds to have a score
 overlap = 0 # Amount sliding window overlaps when searching for signal. Searches 3 second windows with X amount of amount in window. Less overlap, faster. Potentially less accurate for some questions. Default = 1.5
 merge = 0 # If 1 (true) then merge is on. If 0 (false) then you get individual tags.# Merge example: With default threshold of .8 and your species score >= .8 in every scanned segment for 30 seconds and one label has score = .97 it creates a long label that is 30-seconds long with a score of .97.
 
@@ -156,7 +158,19 @@ print("✅ Processing complete! Log file saved to:", log_file_path)
 # If duplicates (i.e you reran same files using same settings the labels are not written to the database because they exist)
 
 # Database and table names
-database_name = "C:/Users/EdgarM/Desktop/Localization/hawkears_veery_database.db" # Name of the SQLite database to call hawkears_results from
+database_name = r"C:/Users/EdgarM/Desktop/Localization/hawkears_boreallocalization_ewpw_database.db" # Name of the SQLite database to call hawkears_results from
+conn = sqlite3.connect(database_name)
+
+# See what tables exist
+print(pd.read_sql_query("SELECT name FROM sqlite_master WHERE type='table';", conn))
+
+# How many labels did HawkEars write?
+print(pd.read_sql_query("SELECT COUNT(*) AS n FROM hawkears_results;", conn))
+
+# How many subset files are tracked?
+print(pd.read_sql_query("SELECT COUNT(*) AS n FROM all_subsetfiles;", conn))
+
+conn.close()
 
 # Validation settings
 #top_n = 1 # Number of best tags to keep in a recording (filename) for validation. All tags above cutoff are kept in hawkears_results table, this is just for validation. Default validation setting is all labels
