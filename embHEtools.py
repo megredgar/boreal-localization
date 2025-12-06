@@ -257,8 +257,9 @@ def audiolist_format(fileall, fileformat):
         audio_files_df['filepath'] = audio_files_df['filepath'].apply(lambda x: Path(x).as_posix())
         audio_files_df['filename'] = audio_files_df['filepath'].apply(lambda x: Path(x).name)
 
-        # Assign 'location' based on filename prefix (before first '_')
-        audio_files_df['location'] = audio_files_df['filename'].apply(lambda x: Path(x).stem.split('_')[0])
+      # NEW: match audiolist_count – use parent folder as location
+        audio_files_df['location'] = audio_files_df['filepath'].apply(lambda x: Path(x).parent.name)
+
 
         # Function to parse filenames and remove 'T' from time
         def parse_filename(filename):
@@ -452,11 +453,19 @@ def audiolist_join(countfiles_csv, subsetfiles_csv, mergedfiles_csv):
         print(f"❌ HARD STOP: Error reading input files: {e}")
         sys.exit(1)
 
+    # 🔧 IMPORTANT: normalize subset locations to match count_df logic
+    # count_df['location'] was created in audiolist_count as parent folder name.
+    # We force subset_df['location'] to be the parent folder of filepath as well.
+    subset_df['filepath'] = subset_df['filepath'].astype(str)
+    subset_df['filepath'] = subset_df['filepath'].apply(lambda x: Path(x).as_posix())
+    subset_df['location'] = subset_df['filepath'].apply(lambda x: Path(x).parent.name)
+
     merged_df = pd.merge(count_df, subset_df, on='location', how='inner')
 
     if merged_df.empty:
         print("⚠️ HARD STOP: No subset files could be merged with count data.")
         print("➡️  This usually means the folder names in the count file and subset file do not match.")
+        print("➡️  After forcing subset locations from parent folder, there are still no matches.")
         sys.exit(1)
 
     print(f"🔢 Successfully merged {len(merged_df)} subset files to locations.")
@@ -468,6 +477,7 @@ def audiolist_join(countfiles_csv, subsetfiles_csv, mergedfiles_csv):
         print(f"❌ HARD STOP: Failed to write merged CSV: {e}")
         sys.exit(1)
 
+        
 #################################################################################################################################
 def audiolist_filelist(input_csv, output_base_dir):
     """

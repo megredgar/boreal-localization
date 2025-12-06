@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-Created on Thu Jul 24 14:00:23 2025, adapted Dec 12 2015 by MR Edgar
-
-@author: AlexE
+Created on Thu Jul 24 14:00:23 2025
+@author: AlexE, adapted Dec 12 2025 by MR Edgar
 
 Important: modify and run the frontierlabsutils.py script first
 NOTE: Make sure that it's called frontierlabsutils.py and is in the same folder as this script
@@ -38,32 +37,23 @@ rows = []
 for p in audio_paths:
     path_str = str(p)
 
-    # --- SITE: first thing like L1N1E7 anywhere in the path ---
+    # --- SITE: any code like L1N2E3 anywhere in path ---
     site_match = re.search(r"L\d+N\d+E\d+", path_str)
     if not site_match:
-        # If this prints for many paths, we need to tweak the pattern.
+        # If this prints for many files, we need to tweak.
         # print("No site code found in:", p)
         continue
     site = site_match.group(0)
 
-    # --- DATE & SESSION ("0521") from S...T... in filename ---
-    # e.g., S20250531T052113.1234-0500  -> date = 20250531, session = 0521
+    # --- DATE & "hour_minute" from SYYYYMMDDTHHMM in filename ---
     dt_match = re.search(r"S(\d{8})T(\d{4})", path_str)
     date = None
     session = None
     if dt_match:
-        date = dt_match.group(1)
-        session = dt_match.group(2)
-    else:
-        # Fallback: 8-digit date right after site_ in some folder name:
-        # e.g., L1N1E7_20250605_Localization...
-        folder_match = re.search(rf"{site}_([0-9]{{8}})", path_str)
-        if folder_match:
-            date = folder_match.group(1)
-        # session will stay None in this fallback case
+        date = dt_match.group(1)   # e.g. 20250531
+        session = dt_match.group(2)  # e.g. 0159
 
-    # --- GPS from the [ +lat -lon ] bit in the folder name ---
-    # matches things like [+51.34199-96.95669]
+    # --- GPS from [ +lat -lon ] in folder name ---
     gps_match = re.search(r"\[([+-]\d+\.\d+)[^\d+-]*([+-]\d+\.\d+)\]", path_str)
     lat = lon = None
     if gps_match:
@@ -84,6 +74,33 @@ for p in audio_paths:
 df = pd.DataFrame(rows)
 print(f"Parsed {len(df)} audio files into the table.")
 df.head()
+
+# Keep only rows where we actually parsed date+session
+df_valid = df.dropna(subset=["date", "session"])
+
+dup_summary = (
+    df_valid
+    .groupby(["site", "date", "session"], as_index=False)
+    .size()
+    .rename(columns={"size": "n_files"})
+    .query("n_files > 1")
+    .sort_values(["site", "date", "session"])
+)
+
+print("Duplicated (site, date, session) combos:")
+dup_summary
+
+
+problem_mask = (
+    (df_valid["site"] == "L1N2E3")
+    & (df_valid["date"] == "20250531")
+    & (df_valid["session"] == "0159")
+)
+
+test=df_valid.loc[problem_mask, ["site", "date", "session", "path"]]
+
+
+
 
 df["site"].nunique()        # should be ~49
 df[["site", "date"]].drop_duplicates().shape[0]  # how many unique site+date combos

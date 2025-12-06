@@ -2,7 +2,7 @@
 """
 Created on Thu Jul 24 15:36:54 2025
 
-@author: AlexE
+@author: AlexE, adapted Dec 12 2025 by MR Edgar
 
 #This script provides code for trimming recordings that have been synchronized (see sync_loop.py) so that they all have the same start time
 #The code was modified from the example_trim script developed by Tessa Rhinehart (https://github.com/rhine3/frontierlabsutils)
@@ -22,8 +22,8 @@ from frontierlabsutils import (
 )
 
 # Input/output directories
-data_dir = "C:/Users/AlexE/OneDrive - EC-EC/Robinson,Barry (il _ he, him) (ECCC)'s files - Grassland Bird Monitoring/R Projects/Localization/recordings/cclo_resample"
-out_dir = "C:/Users/AlexE/OneDrive - EC-EC/Robinson,Barry (il _ he, him) (ECCC)'s files - Grassland Bird Monitoring/R Projects/Localization/recordings/cclo_trim"
+data_dir = "C:/Users/EdgarM/Desktop/Localization/localizationresample"
+out_dir = "C:/Users/EdgarM/Desktop/Localization/localizationtrim"
 
 # Create output directory if it doesn't exist
 trimmed_recording_dir = Path(out_dir)

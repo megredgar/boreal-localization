@@ -33,11 +33,11 @@ import embHEtools # Functions built by Erin Bayne to run validation code
 
 #Set working directory where you have put HawkEars
 #os.chdir("C:/Users/bayne/HawkEars_v108")
-os.chdir("C:/Users/AlexE/HawkEars")
+os.chdir("C:/Users/EdgarM/Desktop/Localization/boreal-localization/HawkEars")
 
 # Name project and select species you want HawkEars to detect
-projectname = 'cclofollow'
-spp_to_include = ['CCLO'] # NOTE in spp_to_include YOU COULD USE ANY 1 OF['OVEN', 'Ovenbird', 'ovenbi1'])  # can be COMMON_NAME, CODE4, or CODE6 [indicate a dictionary and are required]
+projectname = 'boreallocalization_veery'
+spp_to_include = ['VEER'] # NOTE in spp_to_include YOU COULD USE ANY 1 OF['OVEN', 'Ovenbird', 'ovenbi1'])  # can be COMMON_NAME, CODE4, or CODE6 [indicate a dictionary and are required]
 # If spp_to_include is empty then all species HawkEars knows are processed. If you want a subset type "OVEN", "WTSP", "CHSP" etc)
 
 # Desired recordings to process from Cirrus
@@ -46,13 +46,14 @@ spp_to_include = ['CCLO'] # NOTE in spp_to_include YOU COULD USE ANY 1 OF['OVEN'
 #yearid = 2025
 #siteid = "SNAS"
 runid = f"{projectname}" # Name of processing run
-audio_dir ="C:/Users/AlexE/OneDrive - EC-EC/Robinson,Barry (il _ he, him) (ECCC)'s files - Grassland Bird Monitoring/R Projects/Localization/recordings/cclo_trim" #Run all 4 ARUs
+audio_dir ="C:/Users/EdgarM/Desktop/Localization/localizationtrim" #Run all 49 ARUs
 
+# MEG PUT THESE INSANE TIME
 # Desired dates and times of recordings to select from server
-min_mmdd = 530 # Do not include leading zeros Example: 101 = January 1st
-max_mmdd = 601 # Do not include leading zeros Example: 1231 = December 31st
-min_time = 30000 # Note do NOT include the leading zero that comes off an ARU for time. 0 is midnight not 000000. 50000 is 5 AM
-max_time = 90000 # Note do NOT include the leading zero that comes off an ARU for time. 235999 is millisecond right before midnight
+min_mmdd = 101 # Do not include leading zeros Example: 101 = January 1st
+max_mmdd = 1231 # Do not include leading zeros Example: 1231 = December 31st
+min_time = 0 # Note do NOT include the leading zero that comes off an ARU for time. 0 is midnight not 000000. 50000 is 5 AM
+max_time = 235959 # Note do NOT include the leading zero that comes off an ARU for time. 235999 is millisecond right before midnight
 
 # Desired HawkEars settings. You can further select when doing validation
 cutoff = 0.8 # Cutoff score you want HawkEars to run at. Default = 0.8 in HawkEars. I used 0.01 as I want every 3 seconds to have a score
@@ -63,12 +64,12 @@ merge = 0 # If 1 (true) then merge is on. If 0 (false) then you get individual t
 #python = fr"C:/Users/bayne/HawkEars_v108/venv/Scripts/python.exe" # To tell Colab or Jupyter notebook where Python is located because we have to call subprocess
 #hawkears_code = fr"C:/Users/bayne/HawkEars_v108/analyze.py"
 #he_allspp_cv = "C:/Users/bayne/HawkEars_v108/data/species_codes_morethanbirds.csv"
-python = "C:/Users/AlexE/.conda/envs/hawkears/python.exe" # To tell Colab or Jupyter notebook where Python is located because we have to call subprocess
-hawkears_code = "C:/Users/AlexE/HawkEars/analyze.py"
-he_allspp_cv = "C:/Users/AlexE/HawkEars/species_codes_morethanbirds.csv"
+python = "C:/Users/EdgarM/.conda/envs/boreal_loc/python.exe" # To tell Colab or Jupyter notebook where Python is located because we have to call subprocess
+hawkears_code = "C:/Users/EdgarM/Desktop/Localization/boreal-localization/HawkEars/analyze.py"
+he_allspp_cv = "C:/Users/EdgarM/Desktop/Localization/boreal-localization/HawkEars/data/species_codes.csv"
 
 # Locations of input files required by HawkEars
-input_dir = f"C:/Users/AlexE/Localization/hawkears_inputs/{runid}" #After crawling server this is the folder where text files from each run are going to be stored
+input_dir = f"C:/Users/EdgarM/Desktop/Localization/hawkears_inputs/{runid}" #After crawling server this is the folder where text files from each run are going to be stored
 fileall = f"{input_dir}/{runid}_files.csv" # Location of all files found in the selected audio_dir
 filecount = f"{input_dir}/{runid}_countfiles.csv" # Location of counts of wac/wav files per location
 fileformat = f"{input_dir}/{runid}_formatfiles.csv" # Location of all files, formatted for selection
@@ -77,10 +78,10 @@ filemerge = f"{input_dir}/{runid}_mergefiles.csv" # Location of merged count and
 filelistoflists = fr"{input_dir}/{runid}_listoflists.csv" #Location of the list of files you are going to send to HawkEars the directory they are in
 
 # Locations of output files from HawkEars
-tag_dir = f"C:/Users/AlexE/Localization/hawkears_tags/{runid}" # Tags created by HawkEars in raw CSV
+tag_dir = f"C:/Users/EdgarM/Desktop/Localization/hawkears_tags/{runid}" # Tags created by HawkEars in raw CSV
 foldertags = f"{tag_dir}/{runid}" # Location of where HawkEars writes tags in CSV format
-database_name = f"C:/Users/AlexE/Localization/hawkears_{projectname}_database.db" # Where results are stored in addition to raw CSV
-rootdir_subset = "C:/Users/AlexE/Localization/hawkears_inputs" # Loops through this folder structure to find every file processed you selected for HawkEars to run and writes the path to database
+database_name = f"C:/Users/EdgarM/Desktop/Localization/hawkears_{projectname}_database.db" # Where results are stored in addition to raw CSV
+rootdir_subset = "C:/Users/EdgarM/Desktop/Localization/hawkears_inputs" # Loops through this folder structure to find every file processed you selected for HawkEars to run and writes the path to database
 
 # Location of logs
 os.makedirs(foldertags, exist_ok=True)
@@ -103,6 +104,8 @@ print(fr"Maximum time of day is: {max_time}")
 print(fr"HE score cutoff value is: {cutoff}")
 print(fr"Overlap value is: {overlap}")
 print(fr"Merge value is: {merge}")
+
+
 
 # Each of these steps can be used independently as you see fit
 
@@ -153,7 +156,7 @@ print("✅ Processing complete! Log file saved to:", log_file_path)
 # If duplicates (i.e you reran same files using same settings the labels are not written to the database because they exist)
 
 # Database and table names
-database_name = "C:/Users/AlexE/Localization/hawkears_cclofollow_database.db" # Name of the SQLite database to call hawkears_results from
+database_name = "C:/Users/EdgarM/Desktop/Localization/hawkears_veery_database.db" # Name of the SQLite database to call hawkears_results from
 
 # Validation settings
 #top_n = 1 # Number of best tags to keep in a recording (filename) for validation. All tags above cutoff are kept in hawkears_results table, this is just for validation. Default validation setting is all labels
