@@ -5,14 +5,13 @@ Trim BAR-LT recordings to a common overlap window for localization.
 - Uses the *resampled/synced* recordings (output of sync script)
 - Finds an overlapping 600 s window across recorders
 - Restricts that window to lie between 04:30 and 08:00 local time
-- Trims each recorder to that window using frontierlabsutils.get_audio_from_time
+- Trims each recorder to that window using opensoundscape.Audio.trim
 - Saves trimmed files in the same naming convention as the original trim script:
     <recorder>_<original_filename>.wav
 
 Requires:
 - frontierlabsutils with:
     - extract_start_end
-    - get_audio_from_time
 - opensoundscape
 """
 
@@ -24,7 +23,6 @@ from opensoundscape.audio import Audio
 
 from frontierlabsutils import (
     extract_start_end,
-    get_audio_from_time,
 )
 
 # ---------------------------------------------------------------------
@@ -159,7 +157,7 @@ def in_morning_window(clip_start, clip_len_s: int) -> bool:
     """
     clip_end = clip_start + timedelta(seconds=clip_len_s)
 
-    # Conditions at the level of wall clock time (ignoring date since it's constant)
+    # Compare only by clock time
     t_start = clip_start.timetz()
     t_end = clip_end.timetz()
 
@@ -169,7 +167,7 @@ def in_morning_window(clip_start, clip_len_s: int) -> bool:
         or (t_start.hour == WINDOW_START_TIME.hour and t_start.minute >= WINDOW_START_TIME.minute)
     )
 
-    # end_ok: clip_end <= WINDOW_END_TIME (allowing 00 seconds exactly)
+    # end_ok: clip_end <= WINDOW_END_TIME (allowing 08:00:00 exactly)
     end_ok = (
         (t_end.hour < WINDOW_END_TIME.hour)
         or (
@@ -243,7 +241,7 @@ print(f"  clip_len   : {CLIP_LENGTH_S} s")
 print(f"  fraction of recorders covering this window: {best_frac:.3f}")
 
 # ---------------------------------------------------------------------
-# TRIM FILES FOR EACH RECORDER
+# TRIM FILES FOR EACH RECORDER (WITHOUT get_audio_from_time)
 # ---------------------------------------------------------------------
 
 OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -273,16 +271,19 @@ for rec in all_recorders:
     # Load audio
     audio = Audio.from_file(wav_path)
 
-    # Use helper to pull the correct segment
-    trimmed_audio = get_audio_from_time(
-        clip_start=clip_start,
-        clip_length_s=CLIP_LENGTH_S,
-        original_start=original_start,
-        original_audio=audio,
-    )
+    # Compute offset (seconds) from file start to clip_start
+    offset_s = (clip_start - original_start).total_seconds()
+    # With the coverage test above, this should always be >= 0
+    if offset_s < 0:
+        raise RuntimeError(
+            f"Negative offset for {rec}: clip_start={clip_start}, "
+            f"original_start={original_start}, offset_s={offset_s}"
+        )
 
-    # Naming convention: same as original trim script:
-    #   <recorder>_<original_filename>.wav
+    # Trim from offset_s to offset_s + CLIP_LENGTH_S
+    trimmed_audio = audio.trim(offset_s, offset_s + CLIP_LENGTH_S)
+
+    # Naming convention: <recorder>_<original_filename>.wav
     new_name = f"{rec}_{wav_path.name}"
     out_path = OUT_DIR / new_name
 
