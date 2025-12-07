@@ -3,7 +3,7 @@
 # embHEtools - version 1.0
 # Created by: Dr. Erin Bayne
 # Help from: ChatGPT and Google Gemini
-# Released: July 28, 2025
+# Released: July 28, 2025, ADAPTED BY MEGAN R. EDGAR DECEMBER 2025
 #################################################################################################################################
 # General description:
 # Set of tools to crawl Cirrus server (or any hard drive)
@@ -38,8 +38,8 @@ import embHEtools # Functions built by Erin Bayne to run validation code
 
 
 # Name project and select species you want HawkEars to detect
-projectname = 'boreallocalization_ewpw'
-spp_to_include = ['EWPW'] # NOTE in spp_to_include YOU COULD USE ANY 1 OF['OVEN', 'Ovenbird', 'ovenbi1'])  # can be COMMON_NAME, CODE4, or CODE6 [indicate a dictionary and are required]
+projectname = 'boreallocalization_veer'
+spp_to_include = ['VEER'] # NOTE in spp_to_include YOU COULD USE ANY 1 OF['OVEN', 'Ovenbird', 'ovenbi1'])  # can be COMMON_NAME, CODE4, or CODE6 [indicate a dictionary and are required]
 # If spp_to_include is empty then all species HawkEars knows are processed. If you want a subset type "OVEN", "WTSP", "CHSP" etc)
 
 # Desired recordings to process from Cirrus
@@ -48,7 +48,7 @@ spp_to_include = ['EWPW'] # NOTE in spp_to_include YOU COULD USE ANY 1 OF['OVEN'
 #yearid = 2025
 #siteid = "SNAS"
 runid = f"{projectname}" # Name of processing run
-audio_dir ="E:/BAR-LT_LocalizationProject/localizationtrim" #Run all 49 ARUs
+audio_dir ="E:/BAR-LT_LocalizationProject/localizationtrim_new" #Run all 49 ARUs
 
 # MEG PUT THESE INSANE TIME
 # Desired dates and times of recordings to select from server
@@ -158,7 +158,7 @@ print("✅ Processing complete! Log file saved to:", log_file_path)
 # If duplicates (i.e you reran same files using same settings the labels are not written to the database because they exist)
 
 # Database and table names
-database_name = r"C:/Users/EdgarM/Desktop/Localization/hawkears_boreallocalization_ewpw_database.db" # Name of the SQLite database to call hawkears_results from
+database_name = r"C:/Users/EdgarM/Desktop/Localization/hawkears_boreallocalization_veer_database.db" # Name of the SQLite database to call hawkears_results from
 conn = sqlite3.connect(database_name)
 
 # See what tables exist

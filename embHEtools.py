@@ -477,7 +477,7 @@ def audiolist_join(countfiles_csv, subsetfiles_csv, mergedfiles_csv):
         print(f"❌ HARD STOP: Failed to write merged CSV: {e}")
         sys.exit(1)
 
-        
+
 #################################################################################################################################
 def audiolist_filelist(input_csv, output_base_dir):
     """
@@ -590,7 +590,8 @@ def audiolist_listoflists(merged_csv_path, listoflists_csv, inputs_folder, tag_o
 def hawkears_run(database_name, listoflists_path, python, hawkears_code, cutoff=0.8, overlap=1.5, merge=1):
     """
     Runs HawkEars for a list of locations and appends the results to a SQL database,
-    Inserts placeholder rows when no detections are made for specific filenames (in other words, Notspp is inserted is no labels found by HawkEars.
+    Inserts placeholder rows when no detections are made for specific filenames
+    (Not_spp is inserted if no labels are found by HawkEars).
     """
 
     # Normalize paths
@@ -598,6 +599,10 @@ def hawkears_run(database_name, listoflists_path, python, hawkears_code, cutoff=
     listoflists_path = normalize_path(listoflists_path)
     hawkears_code = normalize_path(hawkears_code)
     python = normalize_path(python)
+
+    # >>> NEW: set HawkEars root directory (for cwd)
+    hawkears_root = os.path.dirname(hawkears_code)
+    print(f"[embHEtools] HawkEars root (cwd) will be: {hawkears_root}")
 
     # Connect to database
     conn = sqlite3.connect(database_name)
@@ -625,6 +630,13 @@ def hawkears_run(database_name, listoflists_path, python, hawkears_code, cutoff=
         );
     """)
     conn.commit()
+
+    # >>> NEW: define insert_query once, so it's available in all branches
+    insert_query = f"""
+        INSERT OR IGNORE INTO "{database_table}"
+        ({', '.join(insert_columns)})
+        VALUES ({', '.join(['?'] * len(insert_columns))})
+    """
 
     try:
         listoflists_df = pd.read_csv(listoflists_path)
@@ -678,8 +690,15 @@ def hawkears_run(database_name, listoflists_path, python, hawkears_code, cutoff=
                 "-p", str(cutoff),
                 "--fast"
             ]
-            print(f"🚀 Running: {' '.join(command)}")
-            result = subprocess.run(command, capture_output=True, text=True, check=True)
+            print(f"🚀 Running (cwd={hawkears_root}): {' '.join(command)}")
+            # >>> NEW: set cwd so relative paths like data/ckpt and data/occurrence.db work
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                check=True,
+                cwd=hawkears_root
+            )
             print(result.stdout)
             if result.stderr:
                 print(f"⚠️ Warnings/Errors: {result.stderr}")
@@ -687,6 +706,8 @@ def hawkears_run(database_name, listoflists_path, python, hawkears_code, cutoff=
             print(f"❌ HawkEars subprocess failed: {e}")
             print(f"stdout: {e.stdout}")
             print(f"stderr: {e.stderr}")
+            # If HawkEars itself failed, don't treat this as "no detections";
+            # just continue to next location without inserting placeholders.
             continue
         except Exception as e:
             print(f"❌ Unexpected error during HawkEars run: {e}")
@@ -706,12 +727,6 @@ def hawkears_run(database_name, listoflists_path, python, hawkears_code, cutoff=
                 detected_files = set(hawkears_output_df['filename'].astype(str))
 
                 # Insert real detections
-                insert_query = f"""
-                    INSERT OR IGNORE INTO "{database_table}"
-                    ({', '.join(insert_columns)})
-                    VALUES ({', '.join(['?'] * len(insert_columns))})
-                """
-
                 inserted_count = 0
                 for _, det_row in hawkears_output_df.iterrows():
                     values = tuple(det_row[col] for col in insert_columns)
@@ -760,8 +775,8 @@ def hawkears_run(database_name, listoflists_path, python, hawkears_code, cutoff=
 
                     inserted_count = 0
                     if not placeholder_df.empty:
-                        for _, row in placeholder_df.iterrows():
-                            values = tuple(row[col] for col in insert_columns)
+                        for _, row2 in placeholder_df.iterrows():
+                            values = tuple(row2[col] for col in insert_columns)
                             try:
                                 cursor.execute(insert_query, values)
                                 inserted_count += cursor.rowcount
@@ -808,8 +823,8 @@ def hawkears_run(database_name, listoflists_path, python, hawkears_code, cutoff=
 
             inserted_count = 0
             if not placeholder_df.empty:
-                for _, row in placeholder_df.iterrows():
-                    values = tuple(row[col] for col in insert_columns)
+                for _, row2 in placeholder_df.iterrows():
+                    values = tuple(row2[col] for col in insert_columns)
                     try:
                         cursor.execute(insert_query, values)
                         inserted_count += cursor.rowcount
@@ -824,6 +839,7 @@ def hawkears_run(database_name, listoflists_path, python, hawkears_code, cutoff=
 
     conn.close()
     print(f"🔒 HawkEars done. Database closed")
+
 
 #################################################################################################################################
 def hawkears_dbaseupdate(database_name):

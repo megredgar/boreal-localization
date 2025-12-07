@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on Fri Aug  8 15:52:47 2025
-@author: AlexE
+@author: AlexE, adapted by Megan Edgar on December 10, 2025
 
 # This script provides the code for localizing sounds from audio recordings using the opensoundscape library, developed by the Kitzes lab at the University of Pittsburg.
 # For the source code and more detailed instructions, see their tutorial page (https://opensoundscape.org/en/latest/tutorials/acoustic_localization.html)
