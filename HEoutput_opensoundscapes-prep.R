@@ -1,6 +1,6 @@
 ## ---------------------------------------------------------------
 ## Converting HawkEars_labels.csv -> aru_coords.csv + detections.csv
-## Adapted for Megan's BBMP localization grid
+## Adapted from Erica's script for Megan's BBMP localization grid
 ## ---------------------------------------------------------------
 
 library(tidyverse)
@@ -48,7 +48,7 @@ head(all_data$species)
 ## ---- build aru_coords.csv ------------------------------------
 sites <- read.csv(sites_path, stringsAsFactors = FALSE)
 
-# rename to match Alex's expected x/y
+# rename to match Erica's expected x/y
 sites_clean <- sites |>
   transmute(
     aru_id = SiteID,
