@@ -67,3 +67,52 @@ for label_file in label_dir.glob("*.txt"):
 combined = pd.concat(all_labels, ignore_index=True)
 combined.to_csv(label_dir / "hawkears_minspec_results.csv", index=False)
 
+
+
+
+import pandas as pd
+from pathlib import Path
+
+label_dir = Path(r"D:/BARLT Localization Project/localization_05312025/hawkears_0_2thresh_VEER/minspec_output")
+
+all_labels = []
+for label_file in label_dir.glob("*.txt"):
+    df = pd.read_csv(label_file, sep='\t', header=None, names=['start', 'end', 'label'])
+    df['file'] = label_file.stem
+    all_labels.append(df)
+
+combined = pd.concat(all_labels, ignore_index=True)
+veer_confirmed = combined[combined['label'].str.startswith('VEER', na=False)]
+# Also strip '_HawkEars' from file column to get the original clip index
+veer_confirmed = veer_confirmed.copy()
+veer_confirmed['file'] = veer_confirmed['file'].str.replace('_HawkEars', '')
+
+print(f"VEER confirmed: {len(veer_confirmed)}")
+
+
+
+from pathlib import Path
+
+clip_dir = Path(r"D:/BARLT Localization Project/localization_05312025/hawkears_0_2thresh_VEER/minspec_clips")
+
+# Which clips exist on disk = succeeded
+existing_clips = {int(f.stem) for f in clip_dir.glob("*.wav")}
+failed = set(range(len(positions))) - existing_clips
+
+print(f"Clips on disk: {len(existing_clips)}, Failed: {len(failed)}")
+
+# Confirmed = exists on disk AND HawkEars detected VEER
+confirmed_indices = set(veer_confirmed['file'].astype(int).unique()) & existing_clips
+
+confirmed_positions = [p for i, p in enumerate(positions) if i in confirmed_indices]
+
+print(f"HawkEars confirmed VEER: {len(confirmed_indices)}")
+
+import shelve
+
+confirmed_shelf = r"D:/BARLT Localization Project/localization_05312025/hawkears_0_2thresh_VEER/pythonoutput/veer_confirmed.out"
+with shelve.open(confirmed_shelf, "n") as db:
+    db["position_estimates"] = confirmed_positions
+
+print(f"Saved {len(confirmed_positions)} confirmed positions to {confirmed_shelf}")
+
