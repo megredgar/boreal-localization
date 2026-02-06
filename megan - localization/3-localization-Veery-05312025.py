@@ -8,7 +8,7 @@ import os
 import re
 from collections import defaultdict
 from datetime import datetime, timedelta
-pip install opensoundscape
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -65,6 +65,10 @@ detections["start_timestamp"] = [
 detections = detections.set_index(
     ["file", "start_time", "end_time", "start_timestamp"]
 )
+
+from datetime import timezone
+
+
 # =============================================================================
 # Localization
 # =============================================================================
@@ -82,10 +86,22 @@ print(f"Number of position estimates returned: {len(position_estimates)}")
 if len(position_estimates) == 0:
     raise SystemExit("No position estimates – check detections / thresholds.")
 
+
+import shelve
+
+shelf_out_path = r"D:/BARLT Localization Project/localization_05312025/hawkears_0_2thresh_VEER/pythonoutput/veer.out"
+
+with shelve.open(shelf_out_path, "r") as my_shelf:
+    position_estimates = my_shelf["position_estimates"]
+
+print(f"Loaded {len(position_estimates)} position estimates")
+
+
+
 # =============================================================================
 # Explore a single example event
 # =============================================================================
-example = position_estimates[0]  # first event
+example = position_estimates[1000]  # first event
 print(f"The start time of the detection: {example.start_timestamp}")
 print(f"This is a detection of the class/species: {example.class_name}")
 print(
@@ -114,7 +130,7 @@ plt.show()
 # Check spectrogram alignment for this example
 # =============================================================================
 audio_segments = example.load_aligned_audio_segments()
-specs = [Spectrogram.from_audio(a).bandpass(2000, 6000) for a in audio_segments]
+specs = [Spectrogram.from_audio(a).bandpass(3000, 9000) for a in audio_segments]
 plt.figure()
 plt.pcolormesh(np.vstack([s.spectrogram for s in specs]), cmap="Greys")
 plt.title("Aligned spectrograms for example VEER event")
@@ -126,6 +142,7 @@ print(f"Residual RMS for example event: {example.residual_rms:.2f} m")
 # All VEER estimates for the same time window as the example
 # (different reference ARUs, same event)
 # =============================================================================
+
 veer_same_event = [
     e
     for e in position_estimates
@@ -280,3 +297,9 @@ with shelve.open(shelf_out_path, "n") as my_shelf:
         my_shelf[key] = globals()[key]
 
 print(f"Saved {variables_to_save} to {shelf_out_path}")
+
+
+
+
+
+
