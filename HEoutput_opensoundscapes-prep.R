@@ -8,7 +8,7 @@ library(stringr)
 
 ## ---- paths ----------------------------------------------------
 # HawkEars output (your CSV)
-labels_path <- "D:/BARLT Localization Project/localization_05312025/hawkears_0_2thresh_VEER/HawkEars_labels.csv"
+labels_path <- "D:/BARLT Localization Project/localization_05312025/hawkears_0_4thresh_COYE/HawkEars_labels.csv"
 
 # Folder where the trimmed wav files live
 wav_dir <- "D:/BARLT Localization Project/localization_05312025/localizationtrim_new"
@@ -17,11 +17,11 @@ wav_dir <- "D:/BARLT Localization Project/localization_05312025/localizationtrim
 sites_path <- "D:/BARLT Localization Project/LocalizationSites_CWS_2025.csv"
 
 # Output files for opensoundscapes
-aru_coords_out   <- "D:/BARLT Localization Project/localization_05312025/hawkears_0_2thresh_VEER/aru_coords.csv"
-detections_out   <- "D:/BARLT Localization Project/localization_05312025/hawkears_0_2thresh_VEER/detections_all_species.csv"
+aru_coords_out   <- "D:/BARLT Localization Project/localization_05312025/hawkears_0_4thresh_COYE/aru_coords.csv"
+detections_out   <- "D:/BARLT Localization Project/localization_05312025/hawkears_0_4thresh_COYE/detections_all_species.csv"
 
 # OPTIONAL: detections for one species
-detections_veer_out <- "D:/BARLT Localization Project/localization_05312025/hawkears_0_2thresh_VEER/detections_VEER.csv"
+detections_coye_out <- "D:/BARLT Localization Project/localization_05312025/hawkears_0_4thresh_COYE/detections_COYE.csv"
 
 ## ---- read HawkEars labels ------------------------------------
 all_data <- read.csv(labels_path, stringsAsFactors = FALSE)
@@ -116,9 +116,9 @@ final_wide <- presence_df |>
 
 write.csv(final_wide, detections_out, row.names = FALSE)
 
-## ---- OPTIONAL: detections for a single species (e.g., VEER) ---
-if ("VEER" %in% names(final_wide)) {
-  detections_veer <- final_wide |>
-    select(file, start_time, end_time, VEER)
-  write.csv(detections_veer, detections_veer_out, row.names = FALSE)
+## ----  detections for a single species (e.g., VEER, COYE, MAWA) ---
+if ("COYE" %in% names(final_wide)) {
+  detections_coye <- final_wide |>
+    select(file, start_time, end_time, COYE)
+  write.csv(detections_coye, detections_coye_out, row.names = FALSE)
 }
