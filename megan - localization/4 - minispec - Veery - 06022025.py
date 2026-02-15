@@ -6,8 +6,8 @@ import librosa
 from joblib import Parallel, delayed
 
 # paths
-out_dir = r"D:/BARLT Localization Project/localization_05312025/hawkears_0_75thresh_MAWA/minspec_output"
-clip_dir = r"D:/BARLT Localization Project/localization_05312025/hawkears_0_75thresh_MAWA/minspec_clips"
+out_dir = r"D:/BARLT Localization Project/localization_05312025/hawkears_0_2thresh_VEER/minspec_output"
+clip_dir = r"D:/BARLT Localization Project/localization_05312025/hawkears_0_2thresh_VEER/minspec_clips"
 
 Path(out_dir).mkdir(exist_ok=True)
 Path(clip_dir).mkdir(exist_ok=True)
@@ -53,10 +53,10 @@ results = Parallel(n_jobs=4)(delayed(process)(p, i) for i, p in enumerate(positi
 print(f"Failures: {sum(results)} of {len(results)}")
 
 # run hawkears in command prompt 
-# python C:\Users\megre\HawkEars\analyze.py -i "D:/BARLT Localization Project/localization_05312025/hawkears_0_75thresh_MAWA/minspec_clips" -o "D:/BARLT Localization Project/localization_05312025/hawkears_0_75thresh_MAWA/minspec_output"
+# python C:\Users\megre\HawkEars\analyze.py -i "D:/BARLT Localization Project/localization_05312025/hawkears_0_2thresh_VEER/minspec_clips" -o "D:/BARLT Localization Project/localization_05312025/hawkears_0_2thresh_VEER/minspec_output"
 
 
-label_dir = Path(r"D:/BARLT Localization Project/localization_05312025/hawkears_0_75thresh_MAWA/minspec_output")
+label_dir = Path(r"D:/BARLT Localization Project/localization_05312025/hawkears_0_2thresh_VEER/minspec_output")
 
 all_labels = []
 for label_file in label_dir.glob("*.txt"):
@@ -73,7 +73,7 @@ combined.to_csv(label_dir / "hawkears_minspec_results.csv", index=False)
 import pandas as pd
 from pathlib import Path
 
-label_dir = Path(r"D:/BARLT Localization Project/localization_05312025/hawkears_0_75thresh_MAWA/minspec_output")
+label_dir = Path(r"D:/BARLT Localization Project/localization_05312025/hawkears_0_2thresh_VEER/minspec_output")
 
 all_labels = []
 for label_file in label_dir.glob("*.txt"):
@@ -82,18 +82,18 @@ for label_file in label_dir.glob("*.txt"):
     all_labels.append(df)
 
 combined = pd.concat(all_labels, ignore_index=True)
-mawa_confirmed = combined[combined['label'].str.startswith('MAWA', na=False)]
+veer_confirmed = combined[combined['label'].str.startswith('VEER', na=False)]
 # Also strip '_HawkEars' from file column to get the original clip index
-mawa_confirmed = mawa_confirmed.copy()
-mawa_confirmed['file'] = mawa_confirmed['file'].str.replace('_HawkEars', '')
+veer_confirmed = veer_confirmed.copy()
+veer_confirmed['file'] = veer_confirmed['file'].str.replace('_HawkEars', '')
 
-print(f"MAWA confirmed: {len(mawa_confirmed)}")
+print(f"VEER confirmed: {len(veer_confirmed)}")
 
 
 
 from pathlib import Path
 
-clip_dir = Path(r"D:/BARLT Localization Project/localization_05312025/hawkears_0_75thresh_MAWA/minspec_clips")
+clip_dir = Path(r"D:/BARLT Localization Project/localization_05312025/hawkears_0_2thresh_VEER/minspec_clips")
 
 # Which clips exist on disk = succeeded
 existing_clips = {int(f.stem) for f in clip_dir.glob("*.wav")}
@@ -101,16 +101,16 @@ failed = set(range(len(positions))) - existing_clips
 
 print(f"Clips on disk: {len(existing_clips)}, Failed: {len(failed)}")
 
-# Confirmed = exists on disk AND HawkEars detected MAWA
-confirmed_indices = set(mawa_confirmed['file'].astype(int).unique()) & existing_clips
+# Confirmed = exists on disk AND HawkEars detected VEER
+confirmed_indices = set(veer_confirmed['file'].astype(int).unique()) & existing_clips
 
 confirmed_positions = [p for i, p in enumerate(positions) if i in confirmed_indices]
 
-print(f"HawkEars confirmed MAWA: {len(confirmed_indices)}")
+print(f"HawkEars confirmed VEER: {len(confirmed_indices)}")
 
 import shelve
 
-confirmed_shelf = r"D:/BARLT Localization Project/localization_05312025/hawkears_0_75thresh_MAWA/pythonoutput/mawa_confirmed.out"
+confirmed_shelf = r"D:/BARLT Localization Project/localization_05312025/hawkears_0_2thresh_VEER/pythonoutput/veer_confirmed.out"
 with shelve.open(confirmed_shelf, "n") as db:
     db["position_estimates"] = confirmed_positions
 

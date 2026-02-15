@@ -2,123 +2,110 @@
 ## Converting HawkEars_labels.csv -> aru_coords.csv + detections.csv
 ## Adapted from Erica's script for Megan's BBMP localization grid
 ## ---------------------------------------------------------------
-
 library(tidyverse)
 library(stringr)
 
 ## ---- paths ----------------------------------------------------
-# HawkEars output (your CSV)
-labels_path <- "D:/BARLT Localization Project/localization_05312025/hawkears_0_4thresh_COYE/HawkEars_labels.csv"
+labels_path <- "D:/BARLT Localization Project/localization_05312025/hawkears_lowthresh/HawkEars_labels.csv"
+wav_dir     <-"D:/BARLT Localization Project/localization_05312025/localizationtrim_new"  # <- adjust if different
+sites_path  <- "D:/BARLT Localization Project/LocalizationSites_CWS_2025.csv"
 
-# Folder where the trimmed wav files live
-wav_dir <- "D:/BARLT Localization Project/localization_05312025/localizationtrim_new"
+out_conw <- "D:/BARLT Localization Project/localization_05312025/hawkears_0_7_CONW"
+out_ambi <- "D:/BARLT Localization Project/localization_05312025/hawkears_0_7_AMBI"
+out_alfl<- "D:/BARLT Localization Project/localization_05312025/hawkears_0_7_ALFL"
 
-# RTK / site coordinates (your grid)
-sites_path <- "D:/BARLT Localization Project/LocalizationSites_CWS_2025.csv"
+aru_coords_out <- file.path(out_conw, "aru_coords.csv")
+detections_out <- file.path(out_conw, "detections_all_species.csv")
 
-# Output files for opensoundscapes
-aru_coords_out   <- "D:/BARLT Localization Project/localization_05312025/hawkears_0_4thresh_COYE/aru_coords.csv"
-detections_out   <- "D:/BARLT Localization Project/localization_05312025/hawkears_0_4thresh_COYE/detections_all_species.csv"
+detections_conw_out<- file.path(out_conw, "detections_CONW.csv")
+detections_alfl_out<- file.path(out_alfl, "detections_ALFL.csv")
+detections_ambi_out<- file.path(out_ambi, "detections_AMBI.csv")
 
-# OPTIONAL: detections for one species
-detections_coye_out <- "D:/BARLT Localization Project/localization_05312025/hawkears_0_4thresh_COYE/detections_COYE.csv"
+## ensure folders exist
+dir.create(out_veer, recursive = TRUE, showWarnings = FALSE)
+dir.create(out_coye, recursive = TRUE, showWarnings = FALSE)
+dir.create(out_mawa, recursive = TRUE, showWarnings = FALSE)
 
-## ---- read HawkEars labels ------------------------------------
-all_data <- read.csv(labels_path, stringsAsFactors = FALSE)
-
-# If you want to apply a confidence threshold, set it here:
-min_score <- 0.7
-all_data <- all_data |> 
-  filter(score >= min_score)
-
-# Add full filepath, ARU ID, and harmonize column names
-all_data <- all_data |>
+## ---- read + threshold ----------------------------------------
+#thr <- c(VEER = 0.2, COYE = 0.4, MAWA = 0.75)
+thr <- c(AMBI = 0.7, ALFL = 0.7, CONW = 0.7)
+all_data <- read.csv(labels_path, stringsAsFactors = FALSE) |>
   mutate(
+    species   = class_code,
+    aru_id    = str_extract(filename, "L\\d+N\\d+E\\d+"),
     file      = file.path(wav_dir, filename),
-    aru_id    = sub("_.*", "", filename),   # e.g., "L1N1E1" from "L1N1E1_S2025..."
     tag_start = as.numeric(start_time),
-    tag_end   = as.numeric(end_time),
-    species   = class_code                  # use short code (VEER, COYE, etc.)
-  )
-
-## quick sanity checks
-unique(all_data$aru_id)[1:10]
-head(all_data$file)
-head(all_data$species)
+    tag_end   = as.numeric(end_time)
+  ) |>
+  filter(!is.na(aru_id), aru_id != "") |>
+  filter(species %in% names(thr)) |>
+  filter(score >= unname(thr[species]))
 
 ## ---- build aru_coords.csv ------------------------------------
-sites <- read.csv(sites_path, stringsAsFactors = FALSE)
-
-# rename to match Erica's expected x/y
-sites_clean <- sites |>
+sites_clean <- read.csv(sites_path, stringsAsFactors = FALSE) |>
   transmute(
     aru_id = SiteID,
     x = Longitude,
     y = Latitude
   )
 
-# one row per recording file, joined to ARU coordinates
-aru_coords <- all_data |>
+aru_coords_out_df <- all_data |>
   distinct(file, aru_id) |>
-  left_join(sites_clean, by = "aru_id")
-
-# check for any ARUs that didn't match
-aru_coords |> filter(is.na(x) | is.na(y)) |> distinct(aru_id)
-
-# keep only the columns opensoundscapes needs
-aru_coords_out_df <- aru_coords |>
+  left_join(sites_clean, by = "aru_id") |>
   select(file, x, y) |>
   distinct()
 
 write.csv(aru_coords_out_df, aru_coords_out, row.names = FALSE)
 
-## ---- build detections.csv (3 s bins, all species) ------------
-
-# find max end time across all tags to define binning
+## ---- build detections_all_species.csv (3 s bins) -------------
 global_max_end <- max(all_data$tag_end, na.rm = TRUE)
 
-# 3-second bins
-all_bins <- tibble(
-  bin_start = seq(0, global_max_end, by = 3)
-) |>
+all_bins <- tibble(bin_start = seq(0, global_max_end, by = 3)) |>
   mutate(bin_end = bin_start + 3)
 
-# ARU × species combos actually present in the HawkEars output
 aru_sp <- all_data |>
   distinct(aru_id, species)
 
-# expand to ARU × species × time bins
 bins_sp <- aru_sp |>
   crossing(all_bins)
 
-# mark bins where that species is present on that ARU
 presence_df <- bins_sp |>
   left_join(all_data, by = c("aru_id", "species")) |>
-  # keep only bins overlapping with at least one tag
   filter(!(bin_end <= tag_start | bin_start >= tag_end)) |>
   distinct(file, species, bin_start, bin_end) |>
   mutate(present = 1)
 
-# tidy + pivot to wide
 final_wide <- presence_df |>
   select(file, bin_start, bin_end, species, present) |>
   distinct() |>
   pivot_wider(
-    names_from  = species,   # columns: VEER, COYE, NAWA, ...
+    names_from  = species,
     values_from = present,
     values_fill = 0
   ) |>
   arrange(file, bin_start) |>
-  rename(
-    start_time = bin_start,
-    end_time   = bin_end
-  )
+  rename(start_time = bin_start, end_time = bin_end)
 
 write.csv(final_wide, detections_out, row.names = FALSE)
 
-## ----  detections for a single species (e.g., VEER, COYE, MAWA) ---
-if ("COYE" %in% names(final_wide)) {
-  detections_coye <- final_wide |>
-    select(file, start_time, end_time, COYE)
-  write.csv(detections_coye, detections_coye_out, row.names = FALSE)
+## ---- write per-species detections (always write a file) -------
+write_species <- function(sp, out_path) {
+  dir.create(dirname(out_path), recursive = TRUE, showWarnings = FALSE)
+  if (sp %in% names(final_wide)) {
+    out <- final_wide |> select(file, start_time, end_time, all_of(sp))
+  } else {
+    out <- final_wide |> select(file, start_time, end_time) |> mutate(!!sp := 0)
+  }
+  write.csv(out, out_path, row.names = FALSE)
 }
+
+write_species("AMBI", detections_ambi_out)
+write_species("CONW", detections_conw_out)
+write_species("ALFL", detections_alfl_out)
+
+## ---- quick “did it save?” checks ------------------------------
+file.exists(aru_coords_out)
+file.exists(detections_out)
+file.exists(detections_veer_out)
+file.exists(detections_coye_out)
+file.exists(detections_mawa_out)

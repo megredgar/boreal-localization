@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-Localization of [[Magnolia Warbler (MAWA)]] calls using opensoundscape
+Localization of [[Connecticut Warbler (CONW)]] calls using opensoundscape
 Adapted from Erica Alex's script by Megan Edgar, Dec 10 2025
 
 """
+
 import os
 import re
 from collections import defaultdict
@@ -21,9 +22,9 @@ from opensoundscape import Spectrogram
 # =============================================================================
 # Paths – EDIT THESE IF NEEDED
 # =============================================================================
-aru_coords_path   = r"D:/BARLT Localization Project/localization_05312025/hawkears_0_75thresh_MAWA/aru_coords.csv"
-detections_path   = r"D:/BARLT Localization Project/localization_05312025/hawkears_0_75thresh_MAWA/detections_MAWA.csv"
-shelf_out_path    = r"D:/BARLT Localization Project/localization_05312025/hawkears_0_75thresh_MAWA/pythonoutput/mawa.out"
+aru_coords_path   = r"D:/BARLT Localization Project/localization_05312025/hawkears_0_7_CONW/aru_coords.csv"
+detections_path   = r"D:/BARLT Localization Project/localization_05312025/hawkears_0_7_CONW/detections_CONW.csv"
+shelf_out_path    = r"D:/BARLT Localization Project/localization_05312025/hawkears_0_7_CONW/pythonoutput/conw.out"
 
 # make sure the output folder exists
 os.makedirs(os.path.dirname(shelf_out_path), exist_ok=True)
@@ -45,7 +46,7 @@ array = SynchronizedRecorderArray(aru_coords)
 
 # =============================================================================
 # Load detections
-# detections_mawa.csv should have: file, start_time, end_time, mawa
+# detections_VEER.csv should have: file, start_time, end_time, VEER
 # =============================================================================
 detections = pd.read_csv(detections_path)
 
@@ -70,10 +71,23 @@ detections = detections.set_index(
 from datetime import timezone
 
 
+
+det_files = set(detections.index.get_level_values("file").unique())
+coord_files = set(array.file_coords.index)
+
+print("unique files in detections:", len(det_files))
+print("unique files in coords:", len(coord_files))
+print("detections missing coords:", len(det_files - coord_files))
+print("coords not used by detections (extra):", len(coord_files - det_files))
+
+# show a few missing examples
+missing = sorted(det_files - coord_files)
+missing[:10]
+
 # =============================================================================
 # Localization
 # =============================================================================
-min_n_receivers = 4   # minimum number of ARUs with detection
+min_n_receivers = 5   # minimum number of ARUs with detection
 max_receiver_dist = 80  # maximum distance (m) between recorders for TDOA
 
 position_estimates = array.localize_detections(
@@ -88,18 +102,27 @@ if len(position_estimates) == 0:
     raise SystemExit("No position estimates – check detections / thresholds.")
 
 
+#import shelve
+#shelf_out_path = r"D:/BARLT Localization Project/localization_05312025/hawkears_0_2thresh_VEER/pythonoutput/veer.out"
+
+#with shelve.open(shelf_out_path, "r") as my_shelf:
+ #   position_estimates = my_shelf["position_estimates"]
+
+#print(f"Loaded {len(position_estimates)} position estimates")
+
+
 
 # =============================================================================
 # Explore a single example event
 # =============================================================================
-example = position_estimates[1000]  # first event
+example = position_estimates[15]  # first event
 print(f"The start time of the detection: {example.start_timestamp}")
 print(f"This is a detection of the class/species: {example.class_name}")
 print(
     f"The duration of the time-window in which the sound was detected: {example.duration}"
 )
 print(f"The estimated location of the sound: {example.location_estimate}")
-print(f"The receivers on which mawa was detected: \n{example.receiver_files}")
+print(f"The receivers on which VEER was detected: \n{example.receiver_files}")
 print(f"The estimated time-delays of arrival: \n{example.tdoas}")
 print(f"The normalized Cross-Correlation scores: \n{example.cc_maxs}")
 
@@ -112,9 +135,9 @@ plt.scatter(
     label=f"{example.class_name} example",
 )
 plt.legend(bbox_to_anchor=(1.02, 1), loc="upper left")
-plt.xlabel("Easting")
-plt.ylabel("Northing")
-plt.title("Example MAWA localization")
+plt.xlabel("Longitude")
+plt.ylabel("Latitude")
+plt.title("Example VEER localization")
 plt.show()
 
 # =============================================================================
@@ -124,26 +147,26 @@ audio_segments = example.load_aligned_audio_segments()
 specs = [Spectrogram.from_audio(a).bandpass(3000, 9000) for a in audio_segments]
 plt.figure()
 plt.pcolormesh(np.vstack([s.spectrogram for s in specs]), cmap="Greys")
-plt.title("Aligned spectrograms for example MAWA event")
+plt.title("Aligned spectrograms for example VEER event")
 plt.show()
 
 print(f"Residual RMS for example event: {example.residual_rms:.2f} m")
 
 # =============================================================================
-# All MAWA estimates for the same time window as the example
+# All VEER estimates for the same time window as the example
 # (different reference ARUs, same event)
 # =============================================================================
 
-mawa_same_event = [
+veer_same_event = [
     e
     for e in position_estimates
     if e.class_name == example.class_name
     and e.start_timestamp == example.start_timestamp
 ]
 
-x_coords = [e.location_estimate[0] for e in mawa_same_event]
-y_coords = [e.location_estimate[1] for e in mawa_same_event]
-rms = [e.residual_rms for e in mawa_same_event]
+x_coords = [e.location_estimate[0] for e in veer_same_event]
+y_coords = [e.location_estimate[1] for e in veer_same_event]
+rms = [e.residual_rms for e in veer_same_event]
 
 plt.figure()
 plt.scatter(
@@ -153,7 +176,7 @@ plt.scatter(
     alpha=0.4,
     edgecolors="black",
     cmap="jet",
-    label="MAWA event estimates",
+    label="VEER event estimates",
 )
 cbar = plt.colorbar()
 cbar.set_label("Residual RMS (m)")
@@ -161,12 +184,12 @@ plt.plot(aru_coords["x"], aru_coords["y"], "^", label="ARU")
 plt.legend(bbox_to_anchor=(1.2, 1), loc="upper left")
 plt.xlabel("Longitude")
 plt.ylabel("Latitude")
-plt.title("MAWA localization (single time window)")
+plt.title("VEER localization (single time window)")
 plt.show()
 
 
 ## SAME EVENT, but filtered RMS 
-mawa_same_event = [
+veer_same_event = [
     e
     for e in position_estimates
     if e.class_name == example.class_name
@@ -174,9 +197,9 @@ mawa_same_event = [
     and e.residual_rms <= 30  # Add RMS filter here
 ]
 
-x_coords = [e.location_estimate[0] for e in mawa_same_event]
-y_coords = [e.location_estimate[1] for e in mawa_same_event]
-rms = [e.residual_rms for e in mawa_same_event]
+x_coords = [e.location_estimate[0] for e in veer_same_event]
+y_coords = [e.location_estimate[1] for e in veer_same_event]
+rms = [e.residual_rms for e in veer_same_event]
 
 plt.figure()
 plt.scatter(
@@ -186,7 +209,7 @@ plt.scatter(
     alpha=0.4,
     edgecolors="black",
     cmap="jet",
-    label="MAWA event estimates",
+    label="VEER event estimates",
 )
 cbar = plt.colorbar()
 cbar.set_label("Residual RMS (m)")
@@ -194,16 +217,16 @@ plt.plot(aru_coords["x"], aru_coords["y"], "^", label="ARU")
 plt.legend(bbox_to_anchor=(1.2, 1), loc="upper left")
 plt.xlabel("Longitude")
 plt.ylabel("Latitude")
-plt.title("MAWA localization (single time window)")
+plt.title("VEER localization (single time window)")
 plt.show()
 
 
 # =============================================================================
-# Residual RMS summary across all MAWA estimates
+# Residual RMS summary across all VEER estimates
 # =============================================================================
-mawa_all = [e for e in position_estimates if e.class_name == "MAWA"]
+veer_all = [e for e in position_estimates if e.class_name == "VEER"]
 
-residuals = [e.residual_rms for e in mawa_all]
+residuals = [e.residual_rms for e in veer_all]
 min_rms = min(residuals)
 max_rms = max(residuals)
 mean_rms = np.mean(residuals)
@@ -211,7 +234,7 @@ median_rms = np.median(residuals)
 lqt_rms = np.quantile(residuals, 0.25)
 uqt_rms = np.quantile(residuals, 0.75)
 
-print("Residual RMS (MAWA events):")
+print("Residual RMS (VEER events):")
 print(f"  Min:    {min_rms:.2f} m")
 print(f"  Max:    {max_rms:.2f} m")
 print(f"  Mean:   {mean_rms:.2f} m")
@@ -220,8 +243,8 @@ print(f"  Q1:     {lqt_rms:.2f} m")
 print(f"  Q3:     {uqt_rms:.2f} m")
 
 # Filter to good localizations
-rms_cutoff = 20  # m
-low_rms = [e for e in mawa_all if e.residual_rms < rms_cutoff]
+rms_cutoff = 35  # m
+low_rms = [e for e in veer_all if e.residual_rms < rms_cutoff]
 
 plt.figure()
 plt.plot(aru_coords["x"], aru_coords["y"], "^", label="ARUs")
@@ -230,30 +253,30 @@ plt.scatter(
     [e.location_estimate[1] for e in low_rms],
     edgecolor="black",
     alpha=0.6,
-    label=f"MAWA (RMS < {rms_cutoff} m)",
+    label=f"VEER (RMS < {rms_cutoff} m)",
 )
 plt.legend(bbox_to_anchor=(1.02, 1), loc="upper left")
-plt.xlabel("Easting")
-plt.ylabel("Northing")
-plt.title("MAWA localizations with low residual error")
+plt.xlabel("Longitude")
+plt.ylabel("Latitude")
+plt.title("VEER localizations with low residual error")
 plt.show()
 
 # =============================================================================
-# Average MAWA  position per time window (for good localizations)
+# Average VEER position per time window (for good localizations)
 # =============================================================================
-rms_threshold = 20  # meters, residual RMS threshold for “high-confidence” events
+rms_threshold = 30  # meters, residual RMS threshold for “high-confidence” events
 
-mawa_events = [
+veer_events = [
     e for e in position_estimates
-    if e.class_name == "MAWA" and e.residual_rms < rms_threshold
+    if e.class_name == "VEER" and e.residual_rms < rms_threshold
 ]
 
 grouped_by_time = defaultdict(list)
-for event in mawa_events:
+for event in veer_events:
     grouped_by_time[event.start_timestamp].append(event)
 
 # require at least N estimates per window
-min_events_per_window = 1
+min_events_per_window = 3
 
 filtered_groups = {
     ts: events
@@ -269,22 +292,9 @@ timestamps = []
 #    y_avg = np.mean([e.location_estimate[1] for e in events])
 #    avg_locations.append((x_avg, y_avg))
 #    timestamps.append(timestamp)
-#
-#for timestamp, events in filtered_groups.items():
-#    x_avg = np.mean([e.location_estimate[0] for e in events])
-#    y_avg = np.mean([e.location_estimate[1] for e in events])
-
 for timestamp, events in filtered_groups.items():
-    xs = [e.location_estimate[0] for e in events]
-    ys = [e.location_estimate[1] for e in events]
-    coords = [(x, y) for x, y in zip(xs, ys)
-              if np.isfinite(x) and np.isfinite(y)]
-    if len(coords) >= min_events_per_window:
-        x_avg = np.mean([c[0] for c in coords])
-        y_avg = np.mean([c[1] for c in coords])
-        avg_locations.append((x_avg, y_avg))
-        timestamps.append(timestamp)
-
+    x_avg = np.mean([e.location_estimate[0] for e in events])
+    y_avg = np.mean([e.location_estimate[1] for e in events])
 
 if len(avg_locations) == 0:
     print("No time windows passed the RMS / count filters.")
@@ -301,7 +311,7 @@ else:
     plt.scatter(
         x_avg_coords,
         y_avg_coords,
-        label="Average MAWA location per time window",
+        label="Average VEER location per time window",
         alpha=0.7,
     )
     plt.scatter(
@@ -323,7 +333,7 @@ else:
 
     plt.xlabel("Longitude")
     plt.ylabel("Latitude")
-    plt.title("Average MAWA localization per time window")
+    plt.title("Average VEER localization per time window")
     plt.legend(bbox_to_anchor=(1.02, 1), loc="upper left")
     plt.grid(False)
     plt.show()

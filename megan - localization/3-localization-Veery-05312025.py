@@ -2,6 +2,7 @@
 """
 Localization of [[Veery (VEER)]] calls using opensoundscape
 Adapted from Erica Alex's script by Megan Edgar, Dec 10 2025
+
 """
 
 import os
@@ -34,6 +35,13 @@ os.makedirs(os.path.dirname(shelf_out_path), exist_ok=True)
 # =============================================================================
 aru_coords = pd.read_csv(aru_coords_path, index_col=0)
 
+# Convert lat/lon to UTM before localization
+from pyproj import Transformer
+transformer = Transformer.from_crs("EPSG:4326", "EPSG:32614", always_xy=True)
+aru_coords["x"], aru_coords["y"] = transformer.transform(
+    aru_coords["x"].values, aru_coords["y"].values
+)
+
 array = SynchronizedRecorderArray(aru_coords)
 
 # =============================================================================
@@ -42,12 +50,6 @@ array = SynchronizedRecorderArray(aru_coords)
 # =============================================================================
 detections = pd.read_csv(detections_path)
 
-# -----------------------------------------------------------------------------
-# Add start_timestamp based on the recording start time parsed from filename
-# Assumes filenames contain 'SYYYYMMDDTHHMMSS' (e.g. S20250531T052140...)
-# and that start_time is offset in seconds from that.
-# Time zone: America/Winnipeg (CDT in May, UTC-5) to match '-0500' in filename.
-# -----------------------------------------------------------------------------
 #Add the start timestamp, adjusted to match the trimmed recordings (it should be the start time of your latest recording) 
 import pytz
 from datetime import datetime, timedelta
@@ -69,11 +71,24 @@ detections = detections.set_index(
 from datetime import timezone
 
 
+
+det_files = set(detections.index.get_level_values("file").unique())
+coord_files = set(array.file_coords.index)
+
+print("unique files in detections:", len(det_files))
+print("unique files in coords:", len(coord_files))
+print("detections missing coords:", len(det_files - coord_files))
+print("coords not used by detections (extra):", len(coord_files - det_files))
+
+# show a few missing examples
+missing = sorted(det_files - coord_files)
+missing[:10]
+
 # =============================================================================
 # Localization
 # =============================================================================
-min_n_receivers = 3   # minimum number of ARUs with detection
-max_receiver_dist = 40  # maximum distance (m) between recorders for TDOA
+min_n_receivers = 5   # minimum number of ARUs with detection
+max_receiver_dist = 80  # maximum distance (m) between recorders for TDOA
 
 position_estimates = array.localize_detections(
     detections,
@@ -87,21 +102,20 @@ if len(position_estimates) == 0:
     raise SystemExit("No position estimates – check detections / thresholds.")
 
 
-import shelve
+#import shelve
+#shelf_out_path = r"D:/BARLT Localization Project/localization_05312025/hawkears_0_2thresh_VEER/pythonoutput/veer.out"
 
-shelf_out_path = r"D:/BARLT Localization Project/localization_05312025/hawkears_0_2thresh_VEER/pythonoutput/veer.out"
+#with shelve.open(shelf_out_path, "r") as my_shelf:
+ #   position_estimates = my_shelf["position_estimates"]
 
-with shelve.open(shelf_out_path, "r") as my_shelf:
-    position_estimates = my_shelf["position_estimates"]
-
-print(f"Loaded {len(position_estimates)} position estimates")
+#print(f"Loaded {len(position_estimates)} position estimates")
 
 
 
 # =============================================================================
 # Explore a single example event
 # =============================================================================
-example = position_estimates[1000]  # first event
+example = position_estimates[15]  # first event
 print(f"The start time of the detection: {example.start_timestamp}")
 print(f"This is a detection of the class/species: {example.class_name}")
 print(
@@ -173,6 +187,40 @@ plt.ylabel("Latitude")
 plt.title("VEER localization (single time window)")
 plt.show()
 
+
+## SAME EVENT, but filtered RMS 
+veer_same_event = [
+    e
+    for e in position_estimates
+    if e.class_name == example.class_name
+    and e.start_timestamp == example.start_timestamp
+    and e.residual_rms <= 30  # Add RMS filter here
+]
+
+x_coords = [e.location_estimate[0] for e in veer_same_event]
+y_coords = [e.location_estimate[1] for e in veer_same_event]
+rms = [e.residual_rms for e in veer_same_event]
+
+plt.figure()
+plt.scatter(
+    x_coords,
+    y_coords,
+    c=rms,
+    alpha=0.4,
+    edgecolors="black",
+    cmap="jet",
+    label="VEER event estimates",
+)
+cbar = plt.colorbar()
+cbar.set_label("Residual RMS (m)")
+plt.plot(aru_coords["x"], aru_coords["y"], "^", label="ARU")
+plt.legend(bbox_to_anchor=(1.2, 1), loc="upper left")
+plt.xlabel("Longitude")
+plt.ylabel("Latitude")
+plt.title("VEER localization (single time window)")
+plt.show()
+
+
 # =============================================================================
 # Residual RMS summary across all VEER estimates
 # =============================================================================
@@ -216,7 +264,7 @@ plt.show()
 # =============================================================================
 # Average VEER position per time window (for good localizations)
 # =============================================================================
-rms_threshold = 20  # meters, residual RMS threshold for “high-confidence” events
+rms_threshold = 30  # meters, residual RMS threshold for “high-confidence” events
 
 veer_events = [
     e for e in position_estimates
@@ -239,11 +287,14 @@ filtered_groups = {
 avg_locations = []
 timestamps = []
 
+#for timestamp, events in filtered_groups.items():
+#    x_avg = np.mean([e.location_estimate[0] for e in events])
+#    y_avg = np.mean([e.location_estimate[1] for e in events])
+#    avg_locations.append((x_avg, y_avg))
+#    timestamps.append(timestamp)
 for timestamp, events in filtered_groups.items():
     x_avg = np.mean([e.location_estimate[0] for e in events])
     y_avg = np.mean([e.location_estimate[1] for e in events])
-    avg_locations.append((x_avg, y_avg))
-    timestamps.append(timestamp)
 
 if len(avg_locations) == 0:
     print("No time windows passed the RMS / count filters.")
