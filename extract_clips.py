@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Extract 3-second audio clips for each localized VEER event.
+Extract 3-second audio clips for each localized event.
 
 For each averaged event in the SLAM export, this script:
   1. Identifies which receiver files contributed to that time window
@@ -34,15 +34,15 @@ from opensoundscape.audio import Audio
 # CONFIGURATION — must match export_slam.py settings
 # =============================================================================
 
-SHELF_PATH = r"D:/BARLT Localization Project/localization_05312025/hawkears_0_2thresh_VEER/pythonoutput/veer.out"
 
+SHELF_PATH = r"D:/BARLT Localization Project/localization_05312025/hawkears_0_7_CONW/pythonoutput/conw_confirmed.out"
 # SLAM output root (same as export_slam.py OUTPUT_DIR/PROJECT_NAME)
-SLAM_ROOT = r"D:/BARLT Localization Project/localization_05312025/SLAM/veery_localization_05312025"
+SLAM_ROOT = r"D:/BARLT Localization Project/localization_05312025/SLAM-CONW/conw_localization_05312025"
 
 # Filtering — keep identical to export_slam.py
-RMS_THRESHOLD = 30
-MIN_ESTIMATES_PER_WINDOW = 3
-TARGET_CLASS = "VEER"
+RMS_THRESHOLD = 50
+MIN_ESTIMATES_PER_WINDOW =1
+TARGET_CLASS = "index"
 
 # Clip duration in seconds (matches detection window)
 CLIP_DURATION = 3
@@ -123,7 +123,7 @@ def main():
     for i, (timestamp, estimates) in enumerate(
         sorted(filtered_groups.items(), key=lambda kv: kv[0])
     ):
-        event_id = f"VEER_{i:05d}"
+        event_id = f"CONW_{i:05d}"
 
         # Unique receiver files across all estimates in this window
         all_files = set()
@@ -150,8 +150,8 @@ def main():
                 # Event is before this file started — skip
                 continue
 
-            # Clip filename: eventID_site.wav
-            clip_fname = f"{event_id}_{site}.wav"
+            # Clip filename: eventID_site.flac
+            clip_fname = f"{event_id}_{site}.flac"
             # Relative path from SLAM root for audio_file_table
             rel_path = os.path.join("audio", site, clip_fname)
             # Absolute output path

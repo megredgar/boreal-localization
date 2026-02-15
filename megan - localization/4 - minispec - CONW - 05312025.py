@@ -1,118 +1,163 @@
-from opensoundscape import Audio, Spectrogram
-from opensoundscape.localization.position_estimate import positions_to_df
+# -*- coding: utf-8 -*-
+"""
+Minimum spectrogram filtering + HawkEars re-confirmation for CONW
+Adapted from Erica Alex's script by Megan Edgar
+
+Workflow:
+  1. Generate min-spec clips from localized positions
+  2. Run HawkEars on those clips (command line, outside Python)
+  3. Parse HawkEars output and keep only confirmed CONW detections
+"""
+
 import numpy as np
+import pandas as pd
 from pathlib import Path
+
 import librosa
 from joblib import Parallel, delayed
 
-# paths
-out_dir = r"D:/BARLT Localization Project/localization_05312025/hawkears_0_2thresh_VEER/minspec_output"
-clip_dir = r"D:/BARLT Localization Project/localization_05312025/hawkears_0_2thresh_VEER/minspec_clips"
+from opensoundscape import Audio, Spectrogram
+from opensoundscape.localization.position_estimate import positions_to_df
 
-Path(out_dir).mkdir(exist_ok=True)
-Path(clip_dir).mkdir(exist_ok=True)
+# =============================================================================
+# Paths – EDIT THESE IF NEEDED
+# =============================================================================
+species_code = "CONW"
 
+base_dir  = Path(r"D:/BARLT Localization Project/localization_05312025/hawkears_0_7_CONW")
+clip_dir  = base_dir / "minspec_clips"
+label_dir = base_dir / "minspec_output"
+
+clip_dir.mkdir(exist_ok=True)
+label_dir.mkdir(exist_ok=True)
+
+confirmed_shelf_path = str(
+    base_dir / "pythonoutput" / "conw_confirmed.out"
+)
+Path(confirmed_shelf_path).parent.mkdir(parents=True, exist_ok=True)
+
+# =============================================================================
+# Helper functions
+# =============================================================================
 def spec_to_audio(spec, sr):
+    """Invert spectrogram back to audio via Griffin-Lim."""
     y_inv = librosa.griffinlim(spec.spectrogram, hop_length=256, win_length=512)
     return Audio(y_inv, sr)
 
+
 def distances_to_receivers(p, dims=2):
+    """Euclidean distance from estimated location to each receiver."""
     return [
         np.linalg.norm(p.location_estimate[:dims] - r[:dims])
         for r in p.receiver_locations
     ]
 
-def min_spec_to_audio(position, discard_over_distance=50):
-    clips = position.load_aligned_audio_segments()
+
+def min_spec_to_audio(position, discard_over_distance=80):
+    """
+    Build a minimum-spectrogram clip:
+      - load aligned audio from each receiver
+      - discard receivers beyond `discard_over_distance` metres
+      - take the element-wise min across spectrograms
+      - invert back to audio
+    """
+    clips     = position.load_aligned_audio_segments()
     distances = distances_to_receivers(position)
+
     clips = [c for i, c in enumerate(clips) if distances[i] < discard_over_distance]
-    specs = [Spectrogram.from_audio(c, dB_scale=False) for c in clips]
+    if len(clips) == 0:
+        raise ValueError("No receivers within distance threshold")
+
+    specs   = [Spectrogram.from_audio(c, dB_scale=False) for c in clips]
     minspec = specs[0]._spawn(
         spectrogram=np.min(np.array([s.spectrogram for s in specs]), axis=0)
     )
     max_val = np.max([c.samples.max() for c in clips])
+
     return (
         spec_to_audio(minspec, clips[0].sample_rate)
         .normalize(max_val)
         .extend_to(clips[0].duration)
     )
 
-# Filter positions
-positions = [p for p in position_estimates if p.residual_rms < 20]
-print(f"Processing {len(positions)} positions")
+# =============================================================================
+# 1. Filter positions and generate min-spec clips
+#    NOTE: `position_estimates` must already exist in your environment
+#    (from the localization script or loaded from a shelf file)
+# =============================================================================
+rms_cutoff = 30  # metres
 
-# Generate clips
+positions = [p for p in position_estimates if p.residual_rms < rms_cutoff]
+print(f"Positions with RMS < {rms_cutoff} m: {len(positions)}")
+
+
 def process(p, i):
+    """Generate and save one min-spec clip. Returns 0 on success, 1 on failure."""
     try:
-        min_spec_to_audio(p, discard_over_distance=35).save(f"{clip_dir}/{i}.wav")
+        min_spec_to_audio(p, discard_over_distance=35).save(str(clip_dir / f"{i}.wav"))
         return 0
-    except:
+    except Exception as e:
+        print(f"  clip {i} failed: {e}")
         return 1
 
-results = Parallel(n_jobs=4)(delayed(process)(p, i) for i, p in enumerate(positions))
-print(f"Failures: {sum(results)} of {len(results)}")
 
-# run hawkears in command prompt 
-# python C:\Users\megre\HawkEars\analyze.py -i "D:/BARLT Localization Project/localization_05312025/hawkears_0_2thresh_VEER/minspec_clips" -o "D:/BARLT Localization Project/localization_05312025/hawkears_0_2thresh_VEER/minspec_output"
+results = Parallel(n_jobs=4)(
+    delayed(process)(p, i) for i, p in enumerate(positions)
+)
+print(f"Clips generated: {len(results) - sum(results)} / {len(results)}")
+print(f"Failures: {sum(results)}")
 
+# =============================================================================
+# 2. Run HawkEars on the min-spec clips (do this in a separate terminal)
+#
+#python C:/Users/megre/HawkEars/analyze.py -i "D:/BARLT Localization Project/localization_05312025/hawkears_0_7_CONW/minspec_clips" -o "D:/BARLT Localization Project/localization_05312025/hawkears_0_7_CONW/minspec_output"
+# Then come back and run the rest of this script.
+# =============================================================================
 
-label_dir = Path(r"D:/BARLT Localization Project/localization_05312025/hawkears_0_2thresh_VEER/minspec_output")
+# =============================================================================
+# 3. Load HawkEars output
+# =============================================================================
+hawkears_results_path = label_dir / "hawkears_minspec_results.csv"
 
-all_labels = []
-for label_file in label_dir.glob("*.txt"):
-    df = pd.read_csv(label_file, sep='\t', header=None, names=['start', 'end', 'label'])
-    df['file'] = label_file.stem
-    all_labels.append(df)
+combined = pd.read_csv(hawkears_results_path)
+print(f"Total HawkEars labels: {len(combined)}")
 
-combined = pd.concat(all_labels, ignore_index=True)
-combined.to_csv(label_dir / "hawkears_minspec_results.csv", index=False)
+# =============================================================================
+# 4. Filter to confirmed CONW detections
+# =============================================================================
+conw_confirmed = combined[
+    combined["label"].str.startswith(species_code, na=False)
+].copy()
 
+# Strip '_HawkEars' suffix to recover the original clip index
+conw_confirmed["file"] = conw_confirmed["file"].str.replace("_HawkEars", "")
 
+print(f"{species_code} labels in HawkEars output: {len(conw_confirmed)}")
 
-
-import pandas as pd
-from pathlib import Path
-
-label_dir = Path(r"D:/BARLT Localization Project/localization_05312025/hawkears_0_2thresh_VEER/minspec_output")
-
-all_labels = []
-for label_file in label_dir.glob("*.txt"):
-    df = pd.read_csv(label_file, sep='\t', header=None, names=['start', 'end', 'label'])
-    df['file'] = label_file.stem
-    all_labels.append(df)
-
-combined = pd.concat(all_labels, ignore_index=True)
-veer_confirmed = combined[combined['label'].str.startswith('VEER', na=False)]
-# Also strip '_HawkEars' from file column to get the original clip index
-veer_confirmed = veer_confirmed.copy()
-veer_confirmed['file'] = veer_confirmed['file'].str.replace('_HawkEars', '')
-
-print(f"VEER confirmed: {len(veer_confirmed)}")
-
-
-
-from pathlib import Path
-
-clip_dir = Path(r"D:/BARLT Localization Project/localization_05312025/hawkears_0_2thresh_VEER/minspec_clips")
-
-# Which clips exist on disk = succeeded
+# =============================================================================
+# 5. Cross-reference with clips that actually exist on disk
+# =============================================================================
 existing_clips = {int(f.stem) for f in clip_dir.glob("*.wav")}
-failed = set(range(len(positions))) - existing_clips
+failed_clips   = set(range(len(positions))) - existing_clips
 
-print(f"Clips on disk: {len(existing_clips)}, Failed: {len(failed)}")
+print(f"Clips on disk: {len(existing_clips)}, Failed: {len(failed_clips)}")
 
-# Confirmed = exists on disk AND HawkEars detected VEER
-confirmed_indices = set(veer_confirmed['file'].astype(int).unique()) & existing_clips
+confirmed_indices = (
+    set(conw_confirmed["file"].astype(int).unique()) & existing_clips
+)
 
-confirmed_positions = [p for i, p in enumerate(positions) if i in confirmed_indices]
+confirmed_positions = [
+    p for i, p in enumerate(positions) if i in confirmed_indices
+]
 
-print(f"HawkEars confirmed VEER: {len(confirmed_indices)}")
+print(f"HawkEars-confirmed {species_code} positions: {len(confirmed_indices)}")
 
+# =============================================================================
+# 6. Save confirmed positions
+# =============================================================================
 import shelve
 
-confirmed_shelf = r"D:/BARLT Localization Project/localization_05312025/hawkears_0_2thresh_VEER/pythonoutput/veer_confirmed.out"
-with shelve.open(confirmed_shelf, "n") as db:
+with shelve.open(confirmed_shelf_path, "n") as db:
     db["position_estimates"] = confirmed_positions
 
-print(f"Saved {len(confirmed_positions)} confirmed positions to {confirmed_shelf}")
-
+print(f"Saved {len(confirmed_positions)} confirmed positions to {confirmed_shelf_path}")
