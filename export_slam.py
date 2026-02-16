@@ -11,7 +11,7 @@ localization, so position_estimates are already in UTM (easting/northing).
 No coordinate conversion is applied to position estimates.
 
 Usage:
-    python export_slam.py
+    python export_slam_CONW.py
 
 Edit the configuration section below before running.
 
@@ -32,17 +32,17 @@ import pandas as pd
 # =============================================================================
 
 # Input paths
-SHELF_PATH = r"D:/BARLT Localization Project/localization_05312025/hawkears_0_2thresh_VEER/pythonoutput/veer.out"
-ARU_COORDS_PATH = r"D:/BARLT Localization Project/localization_05312025/hawkears_0_2thresh_VEER/aru_coords.csv"
+SHELF_PATH = r"D:/BARLT Localization Project/localization_05312025/hawkears_0_7_CONW/pythonoutput/conw_confirmed.out"
+ARU_COORDS_PATH = r"D:/BARLT Localization Project/localization_05312025/hawkears_0_7_CONW/aru_coords.csv"
 
 # Output
-PROJECT_NAME = "veery_localization_05312025"
-OUTPUT_DIR = r"D:/BARLT Localization Project/localization_05312025/SLAM"
+PROJECT_NAME = "conw_localization_05312025"
+OUTPUT_DIR = r"D:/BARLT Localization Project/localization_05312025/SLAM-CONW"
 
 # Filtering parameters (should match your analysis choices)
 RMS_THRESHOLD = 30          # max residual RMS (m) for "good" localizations
-MIN_ESTIMATES_PER_WINDOW = 3  # min number of estimates to keep a time window
-TARGET_CLASS = "VEER"
+MIN_ESTIMATES_PER_WINDOW = 1  # min number of estimates to keep a time window
+TARGET_CLASS = "index"      # class_name on CONW position objects (index bug from reset_index)
 
 # UTM zone label for metadata (must match what you used before localization)
 UTM_ZONE = "14N"
@@ -83,12 +83,10 @@ def main():
     print(f"  Loaded {len(aru_coords)} ARU positions")
 
     if ARU_COORDS_ALREADY_UTM:
-        # ARU coords are already easting/northing
         aru_utm = aru_coords.copy()
         aru_utm.rename(columns={"x": "utm_easting", "y": "utm_northing"}, inplace=True)
         print(f"  ARU coords treated as UTM (no conversion)")
     else:
-        # Convert lon/lat to UTM
         eastings, northings = lonlat_to_utm(
             aru_coords["x"].values, aru_coords["y"].values, UTM_EPSG
         )
@@ -98,7 +96,6 @@ def main():
         print(f"  Converted ARU coords to UTM ({UTM_EPSG})")
 
     # ---- Filter estimates ---------------------------------------------------
-    # Position estimates are already in UTM — filter by RMS and finite coords
     target_estimates = [
         e for e in position_estimates
         if e.class_name == TARGET_CLASS
@@ -127,11 +124,9 @@ def main():
     for i, (timestamp, estimates) in enumerate(
         sorted(filtered_groups.items(), key=lambda kv: kv[0])
     ):
-        # Position estimates are already in UTM — average directly
         xs = [e.location_estimate[0] for e in estimates]
         ys = [e.location_estimate[1] for e in estimates]
 
-        # Extra safety: drop any inf/nan that slipped through
         coords = [(x, y) for x, y in zip(xs, ys)
                   if np.isfinite(x) and np.isfinite(y)]
 
@@ -141,20 +136,17 @@ def main():
         x_avg = np.mean([c[0] for c in coords])
         y_avg = np.mean([c[1] for c in coords])
 
-        # Summary stats
         rms_values = [e.residual_rms for e in estimates]
         mean_rms = np.mean(rms_values)
         n_estimates = len(coords)
-
         duration = estimates[0].duration
 
-        # Collect all unique receiver files
         all_file_ids = set()
         for e in estimates:
             all_file_ids.update(e.receiver_files)
 
         events.append({
-            "event_id": f"VEER_{i:05d}",
+            "event_id": f"CONW_{i:05d}",
             "label": TARGET_CLASS,
             "start_timestamp": timestamp.isoformat(),
             "duration": duration,
@@ -196,8 +188,8 @@ def main():
     classes_path = os.path.join(root, "classes.csv")
     write_csv(classes_path,
         ["class", "species", "scientific_name", "vocalization_type", "description"],
-        [{"class": "VEER", "species": "Veery",
-          "scientific_name": "Catharus fuscescens",
+        [{"class": "CONW", "species": "Connecticut Warbler",
+          "scientific_name": "Oporornis agilis",
           "vocalization_type": "song", "description": ""}],
     )
 
@@ -243,7 +235,7 @@ def main():
     with open(env_path, "w") as f:
         f.write("# Conda environment for reproducing localization pipeline\n")
         f.write("# Generate frozen env with: conda env export > environment.yml\n")
-        f.write("name: slam_veery\n")
+        f.write("name: slam_conw\n")
         f.write("dependencies:\n")
         f.write("  - python>=3.9\n")
         f.write("  - opensoundscape\n")
@@ -302,15 +294,15 @@ def build_readme(project_name, n_events, n_arus, utm_zone, rms_threshold, min_es
 - dimensions localized: 2
 - number of localization arrays: 1
 - array geometry: [fill in — describe shape and spacing]
-- sounds localized: Veery (VEER) songs
+- sounds localized: Connecticut Warbler (CONW) songs
 - number of localized events: {n_events}
 - number of ARUs: {n_arus}
 - size: [fill in] GB
 
 ## Study description
 
-Study purpose: Acoustic localization of Veery (Catharus fuscescens) songs
-using a synchronized recorder array in the boreal forest.
+Study purpose: Acoustic localization of Connecticut Warbler (Oporornis agilis)
+songs using a synchronized recorder array in the boreal forest.
 
 Personnel: [fill in — who led, managed, participated]
 
@@ -323,12 +315,12 @@ Notes:
 
 ## Files
 
-localized_events.csv: {n_events} acoustically localized Veery song events,
-averaged across estimates per detection time window.
+localized_events.csv: {n_events} acoustically localized Connecticut Warbler
+song events, averaged across estimates per detection time window.
 
 Columns:
-- event_id: unique ID (format VEER_XXXXX)
-- label: species alpha code (VEER)
+- event_id: unique ID (format CONW_XXXXX)
+- label: species alpha code (CONW)
 - start_timestamp: event onset in ISO 8601 format
 - duration: detection window length in seconds
 - position_x: UTM easting (m), zone {utm_zone}
@@ -409,13 +401,13 @@ Audio preprocessing:
 - [fill in any resampling or denoising]
 
 Classes localized:
-- Veery (VEER) songs detected using HawkEars at 0.2 score threshold
+- Connecticut Warbler (CONW) songs detected using HawkEars at 0.7 score threshold
 
 - Detection strategy: convolutional neural network
 - Detector name and version: HawkEars [fill in version]
 - Link to detector information: [fill in URL]
 - Post-processing detector outputs:
-  - Binarization/thresholding: score threshold >= 0.2
+  - Binarization/thresholding: score threshold >= 0.7
   - Manual review process: [fill in if applicable]
 - Scripts/resources: [fill in]
 
@@ -430,7 +422,7 @@ Classes localized:
   - max_receiver_dist: 80 m
   - Residual RMS threshold: {rms_threshold} m
   - Minimum estimates per time window: {min_estimates}
-- Scripts: export_slam.py, [original localization script]
+- Scripts: export_slam_CONW.py, localization_CONW.py
 
 ### Manual review
 

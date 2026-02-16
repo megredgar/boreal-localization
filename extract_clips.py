@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Extract 3-second audio clips for each localized event.
+Extract 3-second audio clips for each localized CONW event.
 
 For each averaged event in the SLAM export, this script:
   1. Identifies which receiver files contributed to that time window
@@ -11,10 +11,10 @@ For each averaged event in the SLAM export, this script:
   6. Updates localized_events.csv with correct file_ids and file_start_time_offsets
 
 Assumes position_estimates are already filtered and grouped the same way
-as export_slam.py (same RMS_THRESHOLD, MIN_ESTIMATES_PER_WINDOW, etc.).
+as export_slam_CONW.py (same RMS_THRESHOLD, MIN_ESTIMATES_PER_WINDOW, etc.).
 
 Usage:
-    python extract_clips.py
+    python extract_clips_CONW.py
 
 Requirements:
     pip install opensoundscape numpy pandas
@@ -31,18 +31,18 @@ import pandas as pd
 from opensoundscape.audio import Audio
 
 # =============================================================================
-# CONFIGURATION — must match export_slam.py settings
+# CONFIGURATION — must match export_slam_CONW.py settings
 # =============================================================================
 
-
 SHELF_PATH = r"D:/BARLT Localization Project/localization_05312025/hawkears_0_7_CONW/pythonoutput/conw_confirmed.out"
-# SLAM output root (same as export_slam.py OUTPUT_DIR/PROJECT_NAME)
+
+# SLAM output root (same as export_slam_CONW.py OUTPUT_DIR/PROJECT_NAME)
 SLAM_ROOT = r"D:/BARLT Localization Project/localization_05312025/SLAM-CONW/conw_localization_05312025"
 
-# Filtering — keep identical to export_slam.py
+# Filtering — keep identical to export_slam_CONW.py
 RMS_THRESHOLD = 50
-MIN_ESTIMATES_PER_WINDOW =1
-TARGET_CLASS = "index"
+MIN_ESTIMATES_PER_WINDOW = 1
+TARGET_CLASS = "index"      # class_name on CONW position objects (index bug from reset_index)
 
 # Clip duration in seconds (matches detection window)
 CLIP_DURATION = 3
@@ -88,7 +88,7 @@ def main():
     audio_dir = os.path.join(SLAM_ROOT, "audio")
     os.makedirs(audio_dir, exist_ok=True)
 
-    # ---- Load and filter estimates (same logic as export_slam.py) -----------
+    # ---- Load and filter estimates (same logic as export_slam_CONW.py) ------
     print(f"Loading position estimates from: {SHELF_PATH}")
     with shelve.open(SHELF_PATH, "r") as db:
         position_estimates = db["position_estimates"]
@@ -175,14 +175,12 @@ def main():
                 continue
 
             # Track for file table and event linkage
-            # Use clip filename as file_id (unique, matches SLAM convention)
             file_id = clip_fname
 
             event_file_ids.append(file_id)
             event_offsets.append(round(offset_sec, 6))
 
             # Build audio_file_table row
-            # point_id = site name (matches point_table.csv)
             audio_file_rows.append({
                 "file_id": file_id,
                 "relative_path": rel_path,
